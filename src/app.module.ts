@@ -13,13 +13,14 @@ import { SearchModule } from './search/search.module';
   imports: [
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT) || 3306,
-      username: process.env.DB_USERNAME || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'beautydope',
+      // Support both local DB_* vars and Railway's MYSQL* vars
+      host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT) || 3306,
+      username: process.env.DB_USERNAME || process.env.MYSQLUSER || 'root',
+      password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+      database: process.env.DB_NAME || process.env.MYSQLDATABASE || 'beautydope',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: true, // auto-create tables (safe for this project)
       logging: process.env.NODE_ENV === 'development',
     }),
     AuthModule,
