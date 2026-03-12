@@ -11,12 +11,12 @@ import { UserFavorite } from '../../favorites/entities/favorite.entity';
 import * as bcrypt from 'bcrypt';
 
 const AppDataSource = new DataSource({
-  type: 'mysql',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT) || 3306,
-  username: process.env.DB_USERNAME || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'beautydope',
+  type: 'postgres',
+  host: process.env.DB_HOST || process.env.PGHOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || process.env.PGPORT) || 5432,
+  username: process.env.DB_USERNAME || process.env.PGUSER || 'postgres',
+  password: process.env.DB_PASSWORD || process.env.PGPASSWORD || '',
+  database: process.env.DB_NAME || process.env.PGDATABASE || 'beautydope',
   entities: [User, Profile, Product, Category, Dupe, Review, UserFavorite],
   synchronize: false,
 });
