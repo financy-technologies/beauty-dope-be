@@ -43,9 +43,13 @@ const NYKAA_DIRECT_IDS: Record<string, { id: number; referer: string }> = {
     id:      25763,
     referer: 'https://www.nykaa.com/skin/shop-by-concern/wrinkles-fine-lines/c/25763',
   },
+  'skin/moisturiser': {
+    id:      8395,
+    referer: 'https://www.nykaa.com/skin/moisturizers/night-cream/c/8395',
+  },
   // Add more skin subcategory IDs here as you discover them via DevTools:
-  // 'skin/moisturiser': { id: XXXX, referer: 'https://...' },
-  // 'skin/serum':       { id: XXXX, referer: 'https://...' },
+  // 'skin/serum':    { id: XXXX, referer: 'https://...' },
+  // 'skin/cleanser': { id: XXXX, referer: 'https://...' },
 };
 
 // Map Nykaa l3 / l2 category names → our subcategory keys.

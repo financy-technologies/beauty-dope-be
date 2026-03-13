@@ -83,6 +83,22 @@ export class ScrapingPreviewController {
   }
 
   /**
+   * POST /api/scraping/preview/scrape-and-save
+   * Body: { "source": "nykaa", "category": "skin", "subcategory": "moisturiser" }
+   *
+   * Scrapes ONE source / category / subcategory and upserts results to DB.
+   * Returns { ok, created, updated } counts.
+   */
+  @Post('scrape-and-save')
+  scrapeAndSave(
+    @Body('source') source: string = 'nykaa',
+    @Body('category') category: string = 'skin',
+    @Body('subcategory') subcategory: string,
+  ) {
+    return this.scrapingService.scrapeAndSave(source, category, subcategory);
+  }
+
+  /**
    * GET /api/scraping/preview/test-scraper
    *    ?source=nykaa&category=skin&subcategory=serum&limit=3
    *

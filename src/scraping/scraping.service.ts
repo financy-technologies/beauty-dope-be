@@ -156,6 +156,35 @@ export class ScrapingService {
     };
   }
 
+  /**
+   * Scrape ONE source / category / subcategory and upsert results to DB.
+   */
+  async scrapeAndSave(
+    source: string,
+    category: string,
+    subcategory: string,
+  ): Promise<{ ok: boolean; source: string; category: string; subcategory: string; created: number; updated: number; error?: string }> {
+    const scraper = this.allScrapers[source as keyof typeof this.allScrapers];
+    if (!scraper) {
+      return { ok: false, source, category, subcategory, created: 0, updated: 0, error: `Unknown source "${source}". Valid: ${Object.keys(this.allScrapers).join(', ')}` };
+    }
+
+    let products: ScrapedProduct[] = [];
+    try {
+      products = await (scraper as any).scrapeSubcategory(category, subcategory);
+    } catch (err: any) {
+      return { ok: false, source, category, subcategory, created: 0, updated: 0, error: err?.message ?? String(err) };
+    }
+
+    let created = 0, updated = 0;
+    for (const p of products) {
+      const result = await this.upsertProduct(p);
+      if (result.created) created++; else updated++;
+    }
+
+    return { ok: true, source, category, subcategory, created, updated };
+  }
+
   async listProductsWithIngredients() {
     const products = await this.productsRepo.find({
       select: ['id', 'name', 'brand', 'price', 'currency', 'category', 'subcategory', 'ingredients', 'ingredientsTokens', 'platform'],
