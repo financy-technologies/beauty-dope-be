@@ -14,6 +14,7 @@ export const CATEGORY_MAP: Record<string, string[]> = {
     'sunscreen',
     'mask',
     'exfoliator',
+    'anti-aging',
   ],
   makeup: [
     'foundation',

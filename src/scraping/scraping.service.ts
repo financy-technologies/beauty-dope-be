@@ -91,6 +91,71 @@ export class ScrapingService {
     return this.schedule;
   }
 
+  /**
+   * Fire ONE scraper for ONE subcategory, return raw results + diagnostics.
+   * Nothing is written to the database.
+   */
+  async testScraper(
+    source: string,
+    category: string,
+    subcategory: string,
+    limit = 3,
+  ): Promise<object> {
+    const scraper = this.allScrapers[source as keyof typeof this.allScrapers];
+    if (!scraper) {
+      return {
+        ok: false,
+        error: `Unknown source "${source}". Valid: ${Object.keys(this.allScrapers).join(', ')}`,
+      };
+    }
+
+    const startMs = Date.now();
+    let products: ScrapedProduct[] = [];
+    let error: string | null = null;
+
+    try {
+      products = await (scraper as any).scrapeSubcategory(category, subcategory);
+    } catch (err: any) {
+      error = err?.message ?? String(err);
+    }
+
+    const elapsedMs = Date.now() - startMs;
+    const sample = products.slice(0, limit);
+
+    return {
+      ok: error === null,
+      source,
+      category,
+      subcategory,
+      elapsedMs,
+      totalFound: products.length,
+      error,
+      // How many have ingredient data (the most important field)
+      withIngredients: products.filter((p) => p.ingredients?.trim()).length,
+      // Ingredient parse stats on sampled products
+      sample: sample.map((p) => ({
+        externalId: p.externalId,
+        name: p.name,
+        brand: p.brand,
+        price: `${p.price} ${p.currency}`,
+        size: p.size ?? null,
+        sourceUrl: p.sourceUrl,
+        ingredientRaw: p.ingredients?.slice(0, 120) ?? null,
+        ingredientTokens: p.ingredients
+          ? this.ingredientParser.parse(p.ingredients).slice(0, 10)
+          : [],
+        keyActives: p.ingredients
+          ? [
+              ...this.ingredientParser.extractKeyActives(
+                this.ingredientParser.parse(p.ingredients),
+                subcategory,
+              ),
+            ]
+          : [],
+      })),
+    };
+  }
+
   async listProductsWithIngredients() {
     const products = await this.productsRepo.find({
       select: ['id', 'name', 'brand', 'price', 'currency', 'category', 'subcategory', 'ingredients', 'ingredientsTokens', 'platform'],

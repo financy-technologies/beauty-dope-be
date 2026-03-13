@@ -81,4 +81,29 @@ export class ScrapingPreviewController {
   productsWithIngredients() {
     return this.scrapingService.listProductsWithIngredients();
   }
+
+  /**
+   * GET /api/scraping/preview/test-scraper
+   *    ?source=nykaa&category=skin&subcategory=serum&limit=3
+   *
+   * Fires ONE scraper for ONE subcategory without touching the DB.
+   * Returns timing, sample products, ingredient tokens, key actives, and
+   * a clear error message if the site blocked or the endpoint changed.
+   *
+   * Valid sources: nykaa | purplle | sephora | ulta
+   */
+  @Get('test-scraper')
+  testScraper(
+    @Query('source') source: string,
+    @Query('category') category: string = 'skin',
+    @Query('subcategory') subcategory: string = 'serum',
+    @Query('limit') limit?: string,
+  ) {
+    return this.scrapingService.testScraper(
+      source ?? 'nykaa',
+      category,
+      subcategory,
+      limit ? Number(limit) : 3,
+    );
+  }
 }

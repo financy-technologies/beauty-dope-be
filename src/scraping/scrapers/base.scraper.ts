@@ -126,4 +126,55 @@ export abstract class BaseScraper {
   protected buildExternalId(platformProductId: string | number): string {
     return `${this.platform}::${platformProductId}`;
   }
+
+  /**
+   * Diagnostic probe: hit a URL directly (no retry, no parsing) and return
+   * the raw HTTP status, headers, and first 500 chars of the response body.
+   * Used by the test script to show exactly why a scraper is failing.
+   */
+  async probe(url: string, params?: Record<string, any>): Promise<{
+    status: number;
+    contentType: string;
+    bodyPreview: string;
+    blocked: boolean;
+    redirected: boolean;
+    finalUrl?: string;
+  }> {
+    try {
+      const res = await this.http.get(url, {
+        params,
+        maxRedirects: 5,
+        validateStatus: () => true,  // don't throw on 4xx/5xx
+        responseType: 'text',
+        timeout: 15_000,
+      });
+
+      const body: string = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+      const contentType: string = res.headers['content-type'] ?? '';
+      const blocked =
+        res.status === 403 ||
+        res.status === 429 ||
+        res.status === 503 ||
+        body.toLowerCase().includes('cloudflare') ||
+        body.toLowerCase().includes('captcha') ||
+        body.toLowerCase().includes('access denied');
+
+      return {
+        status: res.status,
+        contentType,
+        bodyPreview: body.slice(0, 500),
+        blocked,
+        redirected: res.request?.res?.responseUrl !== url,
+        finalUrl: res.request?.res?.responseUrl,
+      };
+    } catch (err: any) {
+      return {
+        status: 0,
+        contentType: '',
+        bodyPreview: err?.message ?? String(err),
+        blocked: false,
+        redirected: false,
+      };
+    }
+  }
 }
