@@ -15,7 +15,25 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  normalizedPriceInr?: number;
+
+  @IsOptional()
+  @IsString()
   imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  platform?: string;
+
+  @IsOptional()
+  @IsString()
+  store?: string;
 
   @IsString()
   category: string;
@@ -26,5 +44,31 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
+  size?: string;
+
+  @IsOptional()
+  @IsString()
+  ingredients?: string;
+
+  @IsOptional()
+  ingredientsTokens?: string[];
+
+  @IsOptional()
+  @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  @IsString()
+  externalId?: string;
+
+  @IsOptional()
+  @IsString()
+  sourceUrl?: string;
+
+  @IsOptional()
+  scrapedAt?: Date;
 }

@@ -35,4 +35,21 @@ export class CreateDupeDto {
   @IsOptional()
   @IsBoolean()
   isTrending?: boolean;
+
+  @IsOptional()
+  @IsString()
+  scoringMethod?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  scoreConfidence?: number;
+
+  @IsOptional()
+  @IsString()
+  scoreVersion?: string;
+
+  @IsOptional()
+  scoreCalculatedAt?: Date;
 }

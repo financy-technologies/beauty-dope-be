@@ -13,6 +13,10 @@ function mapDupe(d: Dupe) {
     id: d.id,
     similarityScore: d.similarityScore,
     savingsPercent: d.savingsPercent,
+    scoringMethod: d.scoringMethod,
+    scoreConfidence: d.scoreConfidence,
+    scoreVersion: d.scoreVersion,
+    scoreCalculatedAt: d.scoreCalculatedAt,
     category: d.category,
     totalVotes: d.totalVotes,
     avgRating: Number(d.avgRating),
@@ -24,6 +28,10 @@ function mapDupe(d: Dupe) {
       name: d.originalProduct.name,
       brand: d.originalProduct.brand,
       price: Number(d.originalProduct.price),
+      currency: d.originalProduct.currency,
+      platform: d.originalProduct.platform,
+      store: d.originalProduct.store,
+      subcategory: d.originalProduct.subcategory,
       image: d.originalProduct.imageUrl || '',
       description: d.originalProduct.description || null,
     },
@@ -32,6 +40,10 @@ function mapDupe(d: Dupe) {
       name: d.dupeProduct.name,
       brand: d.dupeProduct.brand,
       price: Number(d.dupeProduct.price),
+      currency: d.dupeProduct.currency,
+      platform: d.dupeProduct.platform,
+      store: d.dupeProduct.store,
+      subcategory: d.dupeProduct.subcategory,
       image: d.dupeProduct.imageUrl || '',
       description: d.dupeProduct.description || null,
     },
@@ -48,15 +60,54 @@ export class DupesService {
   ) {}
 
   async findAll(query: QueryDupesDto) {
-    const { category, limit = 10, offset = 0, sort = 'created_at' } = query;
+    const {
+      category,
+      subcategory,
+      platform,
+      store,
+      minPrice,
+      maxPrice,
+      limit = 10,
+      offset = 0,
+      sort = 'created_at',
+    } = query;
 
     const qb = this.dupesRepo
       .createQueryBuilder('dupe')
       .leftJoinAndSelect('dupe.originalProduct', 'original')
       .leftJoinAndSelect('dupe.dupeProduct', 'dupeProduct');
 
+    qb.where('1=1');
+
     if (category) {
-      qb.where('dupe.category = :category', { category });
+      qb.andWhere('dupe.category = :category', { category });
+    }
+
+    if (subcategory) {
+      qb.andWhere(
+        '(original.subcategory = :subcategory OR dupeProduct.subcategory = :subcategory)',
+        { subcategory },
+      );
+    }
+
+    if (platform) {
+      qb.andWhere('(original.platform = :platform OR dupeProduct.platform = :platform)', {
+        platform,
+      });
+    }
+
+    if (store) {
+      qb.andWhere('(original.store = :store OR dupeProduct.store = :store)', {
+        store,
+      });
+    }
+
+    if (minPrice !== undefined) {
+      qb.andWhere('dupeProduct.price >= :minPrice', { minPrice });
+    }
+
+    if (maxPrice !== undefined) {
+      qb.andWhere('dupeProduct.price <= :maxPrice', { maxPrice });
     }
 
     switch (sort) {
@@ -71,6 +122,9 @@ export class DupesService {
         break;
       case 'trending':
         qb.orderBy('dupe.totalVotes', 'DESC');
+        break;
+      case 'confidence':
+        qb.orderBy('IFNULL(dupe.scoreConfidence, -1)', 'DESC');
         break;
       default:
         qb.orderBy('dupe.createdAt', 'DESC');
@@ -139,6 +193,10 @@ export class DupesService {
       category: dto.category,
       isFeatured: dto.isFeatured ?? false,
       isTrending: dto.isTrending ?? false,
+      scoringMethod: dto.scoringMethod,
+      scoreConfidence: dto.scoreConfidence,
+      scoreVersion: dto.scoreVersion,
+      scoreCalculatedAt: dto.scoreCalculatedAt,
     });
     const saved = await this.dupesRepo.save(dupe);
     return this.findOne(saved.id);
@@ -152,6 +210,10 @@ export class DupesService {
     if (dto.category !== undefined) update.category = dto.category;
     if (dto.isFeatured !== undefined) update.isFeatured = dto.isFeatured;
     if (dto.isTrending !== undefined) update.isTrending = dto.isTrending;
+    if (dto.scoringMethod !== undefined) update.scoringMethod = dto.scoringMethod;
+    if (dto.scoreConfidence !== undefined) update.scoreConfidence = dto.scoreConfidence;
+    if (dto.scoreVersion !== undefined) update.scoreVersion = dto.scoreVersion;
+    if (dto.scoreCalculatedAt !== undefined) update.scoreCalculatedAt = dto.scoreCalculatedAt;
     await this.dupesRepo.update(id, update);
     return this.findOne(id);
   }

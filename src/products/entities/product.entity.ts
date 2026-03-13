@@ -24,18 +24,55 @@ export class Product {
   @Column('decimal', { precision: 10, scale: 2 })
   price: number;
 
+  @Column({ nullable: true, length: 3 })
+  currency: string;
+
+  @Column('decimal', { name: 'normalized_price_inr', precision: 10, scale: 2, nullable: true })
+  normalizedPriceInr: number;
+
   @Column({ name: 'image_url', nullable: true })
   imageUrl: string;
+
+  @Column({ nullable: true })
+  @Index()
+  platform: string;
+
+  @Column({ nullable: true })
+  @Index()
+  store: string;
 
   @Column()
   @Index()
   category: string;
 
   @Column({ nullable: true })
+  @Index()
   subcategory: string;
+
+  @Column({ nullable: true })
+  size: string;
+
+  @Column({ type: 'text', nullable: true })
+  ingredients: string;
+
+  @Column('simple-json', { name: 'ingredients_tokens', nullable: true })
+  ingredientsTokens: string[];
 
   @Column({ type: 'text', nullable: true })
   description: string;
+
+  @Column({ nullable: true })
+  @Index()
+  source: string;
+
+  @Column({ name: 'external_id', nullable: true, unique: true })
+  externalId: string;
+
+  @Column({ name: 'source_url', nullable: true })
+  sourceUrl: string;
+
+  @Column({ name: 'scraped_at', type: 'timestamp', nullable: true })
+  scrapedAt: Date;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

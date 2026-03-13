@@ -53,6 +53,18 @@ export class Dupe {
   @Index()
   isTrending: boolean;
 
+  @Column({ name: 'scoring_method', nullable: true })
+  scoringMethod: string;
+
+  @Column({ name: 'score_confidence', nullable: true })
+  scoreConfidence: number;
+
+  @Column({ name: 'score_version', nullable: true })
+  scoreVersion: string;
+
+  @Column({ name: 'score_calculated_at', type: 'timestamp', nullable: true })
+  scoreCalculatedAt: Date;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

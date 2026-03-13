@@ -16,7 +16,19 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "seed": "ts-node -r tsconfig-paths/register src/database/seeds/seed.ts"
+    "seed": "ts-node -r tsconfig-paths/register src/database/seeds/seed.ts",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "rootDir": "src",
+    "testRegex": "\\.spec\\.ts$",
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    }
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -25,14 +37,19 @@
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.0.0",
+    "@nestjs/schedule": "^4.1.2",
     "@nestjs/typeorm": "^10.0.2",
+    "@types/cheerio": "^0.22.35",
+    "axios": "^1.13.6",
     "bcrypt": "^5.1.1",
+    "cheerio": "^1.2.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "^17.3.1",
+    "mysql2": "^3.19.1",
+    "p-limit": "^7.3.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
-    "pg": "^8.20.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.20",
@@ -44,9 +61,12 @@
     "@nestjs/testing": "^10.0.0",
     "@types/bcrypt": "^5.0.2",
     "@types/express": "^4.17.21",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.3.1",
     "@types/passport-jwt": "^4.0.1",
     "@types/uuid": "^9.0.8",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
     "ts-node": "^10.9.1",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.1.3"
