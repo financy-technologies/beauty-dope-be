@@ -28,6 +28,8 @@ const SYNONYMS: Record<string, string> = {
   '3-o-ethyl ascorbic acid': 'vitamin-c-derivative',
 
   // Retinol / Retinoids
+  'retinol': 'retinol',
+  'retinoic acid': 'retinol',
   'retinyl palmitate': 'retinol-derivative',
   'retinyl propionate': 'retinol-derivative',
   'retinaldehyde': 'retinaldehyde',
@@ -160,6 +162,17 @@ export const KEY_ACTIVES_BY_SUBCATEGORY: Record<string, string[]> = {
   'hair-oil': ['argan oil', 'jojoba oil', 'rosehip oil', 'castor oil', 'bhringraj'],
   'body-lotion': ['hyaluronic-acid', 'ceramides', 'glycerin', 'shea butter', 'niacinamide'],
   'body-wash': ['salicylic-acid', 'niacinamide', 'glycerin', 'shea butter'],
+  'anti-aging': [
+    'retinol', 'retinol-derivative', 'retinaldehyde',
+    'niacinamide', 'peptides', 'ceramides',
+    'vitamin-c', 'vitamin-c-derivative',
+    'hyaluronic-acid', 'glycolic-acid', 'lactic-acid',
+    'squalane', 'bakuchiol',
+  ],
+  'night-cream': [
+    'retinol', 'retinol-derivative', 'peptides', 'ceramides',
+    'niacinamide', 'hyaluronic-acid', 'squalane',
+  ],
 };
 
 @Injectable()
@@ -171,8 +184,15 @@ export class IngredientParserService {
   parse(rawIngredients: string): string[] {
     if (!rawIngredients?.trim()) return [];
 
+    // Strip common prefix labels before the actual ingredient list
+    // e.g. "Key Ingredients: Retinol, ..." or "Ingredients: Aqua, ..."
+    let cleaned = rawIngredients.replace(
+      /^[\s\S]*?(key\s+ingredients?|active\s+ingredients?|ingredients?|contains?|inci)\s*[:\-]\s*/i,
+      '',
+    );
+
     // "(and)" is an INCI separator used instead of a comma — treat it as a delimiter
-    const normalizedSeparators = rawIngredients.replace(/\s*\(and\)\s*/gi, ',');
+    const normalizedSeparators = cleaned.replace(/\s*\(and\)\s*/gi, ',');
 
     return normalizedSeparators
       .split(/,|;/)                           // split on comma or semicolon

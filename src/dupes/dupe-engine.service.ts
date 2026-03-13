@@ -5,36 +5,49 @@ import { Dupe } from './entities/dupe.entity';
 import { Product } from '../products/entities/product.entity';
 import { IngredientParserService } from '../scraping/ingredient-parser.service';
 
-const SCORE_VERSION = '1.0';
+const SCORE_VERSION = '2.0';
 
 /**
- * Weights for the composite similarity score.
+ * Composite similarity weights
  *
- *  60%  — Jaccard similarity across full ingredient lists
- *  25%  — Key-active overlap (subcategory-specific power ingredients)
- *  15%  — Form-factor / texture match inferred from subcategory
+ *  50%  — Jaccard similarity across full ingredient lists
+ *  40%  — Key-active overlap (subcategory-specific power ingredients)
+ *  10%  — Form-factor / subcategory match
  *
- * A pair is a dupe candidate when compositeScore >= DUPE_THRESHOLD.
- * Additionally, the cheaper product must be at least MIN_SAVINGS_PCT cheaper.
+ * Quality gates (applied before scoring):
+ *  - Both products must have ≥ MIN_TOKENS ingredient tokens
+ *  - Price difference must be 20–800% (meaningful savings, not absurd gap)
+ *  - Same brand pairs are skipped (want cross-brand dupes only)
+ *
+ * Acceptance threshold: compositeScore >= 0.55
+ *
+ * Tier labels:
+ *  exact-match   score >= 0.85
+ *  close-dupe    score >= 0.70
+ *  inspired-by   score >= 0.55
  */
-const WEIGHTS = { jaccard: 0.6, actives: 0.25, formFactor: 0.15 } as const;
-const DUPE_THRESHOLD = 0.35;     // minimum composite score
-const MIN_SAVINGS_PCT = 5;       // at least 5% cheaper to qualify as a dupe
-const BATCH_SAVE_SIZE = 50;      // upsert in batches
+const WEIGHTS         = { jaccard: 0.50, actives: 0.40, formFactor: 0.10 } as const;
+const MIN_TOKENS      = 8;    // minimum ingredient tokens to be comparable
+const MIN_SAVINGS_PCT = 20;   // at least 20% cheaper to qualify
+const MAX_PRICE_RATIO = 8;    // original must not be >8x the dupe (different tier)
+const DUPE_THRESHOLD  = 0.55; // minimum composite score
+const BATCH_SAVE_SIZE = 50;
 
 interface SimilarityResult {
-  jaccardScore: number;
-  activesScore: number;
+  jaccardScore:    number;
+  activesScore:    number;
   formFactorScore: number;
-  compositeScore: number;
-  confidence: number;           // 0–1: how complete/reliable the data is
+  compositeScore:  number;
+  confidence:      number;
+  sharedActives:   string[];
 }
 
 interface DupeCandidate {
-  original: Product;  // the pricier one
-  dupe: Product;      // the cheaper one
+  original:       Product;
+  dupe:           Product;
   savingsPercent: number;
-  similarity: SimilarityResult;
+  priceRatio:     number;
+  similarity:     SimilarityResult;
 }
 
 @Injectable()
@@ -51,22 +64,8 @@ export class DupeEngineService {
 
   // ─── Public API ───────────────────────────────────────────────────────────
 
-  /**
-   * Preview dupe detection without saving anything to the database.
-   * Optionally filter by subcategory. Returns ranked dupe candidates.
-   */
   async previewDetection(subcategoryFilter?: string): Promise<object[]> {
-    const allProducts = await this.productsRepo.find({
-      select: [
-        'id', 'name', 'brand', 'price', 'currency', 'normalizedPriceInr',
-        'category', 'subcategory', 'ingredients', 'ingredientsTokens',
-      ],
-    });
-
-    const eligible = allProducts.filter(
-      (p) => p.ingredients || p.ingredientsTokens?.length,
-    );
-
+    const eligible = await this.loadEligibleProducts();
     const bySubcategory = this.groupBySubcategory(eligible);
     const results: object[] = [];
 
@@ -77,89 +76,63 @@ export class DupeEngineService {
       for (const cand of candidates) {
         results.push({
           subcategory,
+          label:         this.dupeLabel(cand.similarity.compositeScore),
           compositeScore: parseFloat(cand.similarity.compositeScore.toFixed(3)),
-          jaccardScore: parseFloat(cand.similarity.jaccardScore.toFixed(3)),
-          activesScore: parseFloat(cand.similarity.activesScore.toFixed(3)),
-          confidence: cand.similarity.confidence,
+          jaccardScore:   parseFloat(cand.similarity.jaccardScore.toFixed(3)),
+          activesScore:   parseFloat(cand.similarity.activesScore.toFixed(3)),
+          confidence:     cand.similarity.confidence,
           savingsPercent: Math.round(cand.savingsPercent),
+          priceRatio:     parseFloat(cand.priceRatio.toFixed(2)),
+          sharedActives:  cand.similarity.sharedActives,
           original: {
-            id: cand.original.id,
-            name: cand.original.name,
+            id:    cand.original.id,
+            name:  cand.original.name,
             brand: cand.original.brand,
-            price: Number(cand.original.price),
-            currency: cand.original.currency,
+            price: Number(cand.original.normalizedPriceInr ?? cand.original.price),
           },
           dupe: {
-            id: cand.dupe.id,
-            name: cand.dupe.name,
+            id:    cand.dupe.id,
+            name:  cand.dupe.name,
             brand: cand.dupe.brand,
-            price: Number(cand.dupe.price),
-            currency: cand.dupe.currency,
+            price: Number(cand.dupe.normalizedPriceInr ?? cand.dupe.price),
           },
-          sharedIngredients: this.sharedIngredients(cand.original, cand.dupe),
         });
       }
     }
 
-    return results.sort(
-      (a: any, b: any) => b.compositeScore - a.compositeScore,
-    );
+    return results.sort((a: any, b: any) => b.compositeScore - a.compositeScore);
   }
 
-  /**
-   * Parse a raw ingredient string and return tokens + key actives.
-   * Pure utility — no DB access.
-   */
   parseIngredients(raw: string, subcategory: string): object {
-    const tokens = this.parser.parse(raw);
+    const tokens  = this.parser.parse(raw);
     const actives = this.parser.extractKeyActives(tokens, subcategory);
-    return {
-      totalTokens: tokens.length,
-      tokens,
-      keyActives: [...actives],
-    };
+    return { totalTokens: tokens.length, tokens, keyActives: [...actives] };
   }
 
-  /**
-   * Run the full dupe detection pipeline over all products in the database.
-   * Groups products by subcategory, computes pairwise similarity, and
-   * upserts qualifying dupe pairs into the dupes table.
-   *
-   * Returns a summary of created / updated dupe records.
-   */
   async runFullDetection(): Promise<{ created: number; updated: number }> {
-    this.logger.log('Starting full dupe detection run…');
+    this.logger.log('Starting full dupe detection run (v2)…');
 
-    const allProducts = await this.productsRepo.find({
-      select: [
-        'id', 'name', 'brand', 'price', 'currency', 'normalizedPriceInr',
-        'category', 'subcategory', 'ingredients', 'ingredientsTokens',
-      ],
-    });
-
-    // Group by subcategory (ignore products with no ingredient data)
-    const bySubcategory = this.groupBySubcategory(
-      allProducts.filter((p) => p.ingredients || p.ingredientsTokens?.length),
-    );
+    const eligible      = await this.loadEligibleProducts();
+    const bySubcategory = this.groupBySubcategory(eligible);
 
     let created = 0;
     let updated = 0;
 
     for (const [subcategory, products] of bySubcategory.entries()) {
-      this.logger.debug(`Detecting dupes in subcategory: ${subcategory} (${products.length} products)`);
+      this.logger.debug(
+        `Detecting dupes in ${subcategory} (${products.length} eligible products)`,
+      );
       const candidates = this.detectInSubcategory(products, subcategory);
-      const { c, u } = await this.upsertCandidates(candidates, subcategory);
+      const ranked      = this.rankByOriginal(candidates);
+      const { c, u }   = await this.upsertCandidates(ranked, subcategory);
       created += c;
       updated += u;
     }
 
-    this.logger.log(`Dupe detection complete. Created: ${created}, Updated: ${updated}`);
+    this.logger.log(`Done. Created: ${created}, Updated: ${updated}`);
     return { created, updated };
   }
 
-  /**
-   * Re-score a single existing dupe record (e.g. after ingredient data is enriched).
-   */
   async rescoreDupe(dupeId: string): Promise<void> {
     const dupe = await this.dupesRepo.findOne({
       where: { id: dupeId },
@@ -167,37 +140,22 @@ export class DupeEngineService {
     });
     if (!dupe) return;
 
-    const subcategory =
-      dupe.originalProduct.subcategory ?? dupe.dupeProduct.subcategory ?? '';
-    const sim = this.computeSimilarity(
-      dupe.originalProduct,
-      dupe.dupeProduct,
-      subcategory,
-    );
+    const subcategory = dupe.originalProduct.subcategory ?? dupe.dupeProduct.subcategory ?? '';
+    const sim = this.computeSimilarity(dupe.originalProduct, dupe.dupeProduct, subcategory);
 
     await this.dupesRepo.update(dupeId, {
-      similarityScore: Math.round(sim.compositeScore * 100),
-      scoringMethod: 'jaccard+actives+form',
-      scoreConfidence: sim.confidence,
-      scoreVersion: SCORE_VERSION,
+      similarityScore:  Math.round(sim.compositeScore * 100),
+      dupeLabel:        this.dupeLabel(sim.compositeScore),
+      sharedActives:    sim.sharedActives,
+      scoringMethod:    'jaccard+actives+form-v2',
+      scoreConfidence:  sim.confidence,
+      scoreVersion:     SCORE_VERSION,
       scoreCalculatedAt: new Date(),
     });
   }
 
   // ─── Core Algorithm ───────────────────────────────────────────────────────
 
-  /**
-   * Compute the composite similarity between two products.
-   *
-   * Score breakdown:
-   *  1. Jaccard similarity on full ingredient token sets.
-   *  2. Active-ingredient overlap for the given subcategory.
-   *  3. Form-factor match: 1.0 if same subcategory, 0.5 if same parent category.
-   *
-   * Confidence reflects data quality:
-   *  – both products have ≥10 ingredients → high confidence
-   *  – one has fewer → scaled down
-   */
   computeSimilarity(a: Product, b: Product, subcategory: string): SimilarityResult {
     const tokensA = this.ensureTokens(a);
     const tokensB = this.ensureTokens(b);
@@ -205,8 +163,8 @@ export class DupeEngineService {
     const setA = new Set(tokensA);
     const setB = new Set(tokensB);
 
-    const jaccardScore = this.parser.jaccard(setA, setB);
-    const activesScore = this.parser.activeOverlap(tokensA, tokensB, subcategory);
+    const jaccardScore    = this.parser.jaccard(setA, setB);
+    const activesScore    = this.parser.activeOverlap(tokensA, tokensB, subcategory);
     const formFactorScore = this.formFactorScore(a, b);
 
     const compositeScore =
@@ -214,16 +172,12 @@ export class DupeEngineService {
       WEIGHTS.actives * activesScore +
       WEIGHTS.formFactor * formFactorScore;
 
-    const confidence = this.computeConfidence(tokensA.length, tokensB.length);
+    const confidence   = this.computeConfidence(tokensA.length, tokensB.length);
+    const sharedActives = this.computeSharedActives(tokensA, tokensB, subcategory);
 
-    return { jaccardScore, activesScore, formFactorScore, compositeScore, confidence };
+    return { jaccardScore, activesScore, formFactorScore, compositeScore, confidence, sharedActives };
   }
 
-  /**
-   * Run pairwise dupe detection within a subcategory's product list.
-   * Uses an O(n²) comparison — suitable for groups up to ~500 products.
-   * For larger groups a blocking/LSH approach should be added.
-   */
   detectInSubcategory(products: Product[], subcategory: string): DupeCandidate[] {
     const candidates: DupeCandidate[] = [];
 
@@ -232,31 +186,82 @@ export class DupeEngineService {
         const a = products[i];
         const b = products[j];
 
-        // Require a meaningful price difference
-        const priceDiff = this.priceDiffPercent(a, b);
-        if (Math.abs(priceDiff) < MIN_SAVINGS_PCT) continue;
+        // ── Quality gates ──────────────────────────────────────────────────
+        // Skip same brand — we want cross-brand dupes
+        if (a.brand?.toLowerCase() === b.brand?.toLowerCase()) continue;
 
+        const priceA    = Number(a.normalizedPriceInr ?? a.price);
+        const priceB    = Number(b.normalizedPriceInr ?? b.price);
+        if (!priceA || !priceB) continue;
+
+        const [higherPrice, lowerPrice] =
+          priceA >= priceB ? [priceA, priceB] : [priceB, priceA];
+
+        const savingsPercent = ((higherPrice - lowerPrice) / higherPrice) * 100;
+        const priceRatio     = higherPrice / lowerPrice;
+
+        // Must save at least MIN_SAVINGS_PCT%
+        if (savingsPercent < MIN_SAVINGS_PCT) continue;
+        // Reject absurdly priced pairs (completely different market)
+        if (priceRatio > MAX_PRICE_RATIO) continue;
+
+        // ── Score ──────────────────────────────────────────────────────────
         const sim = this.computeSimilarity(a, b, subcategory);
         if (sim.compositeScore < DUPE_THRESHOLD) continue;
 
-        // Orient: original = pricier, dupe = cheaper
-        const [original, dupe, savingsPercent] =
-          priceDiff > 0
-            ? [a, b, priceDiff]          // a is pricier
-            : [b, a, Math.abs(priceDiff)];
+        const [original, dupe] = priceA >= priceB ? [a, b] : [b, a];
 
-        candidates.push({ original, dupe, savingsPercent, similarity: sim });
+        candidates.push({ original, dupe, savingsPercent, priceRatio, similarity: sim });
       }
     }
 
-    // Sort by composite score descending, then savings descending
     return candidates.sort((x, y) => {
-      const scoreDiff = y.similarity.compositeScore - x.similarity.compositeScore;
-      return scoreDiff !== 0 ? scoreDiff : y.savingsPercent - x.savingsPercent;
+      const diff = y.similarity.compositeScore - x.similarity.compositeScore;
+      return diff !== 0 ? diff : y.savingsPercent - x.savingsPercent;
     });
   }
 
+  // ─── Ranking ──────────────────────────────────────────────────────────────
+
+  /**
+   * Group candidates by original product, assign dupeRank within each group.
+   * The best dupe (rank 1) gets isFeatured = true.
+   */
+  private rankByOriginal(candidates: DupeCandidate[]): (DupeCandidate & { rank: number; featured: boolean })[] {
+    const grouped = new Map<string, DupeCandidate[]>();
+
+    for (const c of candidates) {
+      const key = c.original.id;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(c);
+    }
+
+    const ranked: (DupeCandidate & { rank: number; featured: boolean })[] = [];
+
+    for (const group of grouped.values()) {
+      // Already sorted by score — assign rank
+      group.forEach((c, idx) => {
+        ranked.push({ ...c, rank: idx + 1, featured: idx === 0 });
+      });
+    }
+
+    return ranked;
+  }
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  private async loadEligibleProducts(): Promise<Product[]> {
+    const all = await this.productsRepo.find({
+      select: [
+        'id', 'name', 'brand', 'price', 'currency', 'normalizedPriceInr',
+        'category', 'subcategory', 'ingredients', 'ingredientsTokens',
+      ],
+    });
+    return all.filter((p) => {
+      const tokens = this.ensureTokens(p);
+      return tokens.length >= MIN_TOKENS;
+    });
+  }
 
   private groupBySubcategory(products: Product[]): Map<string, Product[]> {
     const map = new Map<string, Product[]>();
@@ -274,15 +279,10 @@ export class DupeEngineService {
     return [];
   }
 
-  /**
-   * Percent by which product A is more expensive than B (positive = A pricier).
-   * Uses normalizedPriceInr when available so cross-currency pairs work.
-   */
-  private priceDiffPercent(a: Product, b: Product): number {
-    const priceA = Number(a.normalizedPriceInr ?? a.price);
-    const priceB = Number(b.normalizedPriceInr ?? b.price);
-    if (!priceB) return 0;
-    return ((priceA - priceB) / priceB) * 100;
+  private dupeLabel(score: number): string {
+    if (score >= 0.85) return 'exact-match';
+    if (score >= 0.70) return 'close-dupe';
+    return 'inspired-by';
   }
 
   private formFactorScore(a: Product, b: Product): number {
@@ -292,27 +292,21 @@ export class DupeEngineService {
     return 0;
   }
 
-  private sharedIngredients(a: Product, b: Product): string[] {
-    const setA = new Set(this.ensureTokens(a));
-    const setB = new Set(this.ensureTokens(b));
-    return [...setA].filter((t) => setB.has(t));
+  private computeSharedActives(tokensA: string[], tokensB: string[], subcategory: string): string[] {
+    const setA    = new Set(tokensA);
+    const setB    = new Set(tokensB);
+    const actives = this.parser.extractKeyActives(tokensA, subcategory);
+    return [...actives].filter((a) => setA.has(a) && setB.has(a));
   }
 
   private computeConfidence(lenA: number, lenB: number): number {
-    // Full confidence when both products have ≥10 ingredients
-    const MIN = 10;
-    const ratioA = Math.min(lenA / MIN, 1);
-    const ratioB = Math.min(lenB / MIN, 1);
-    return parseFloat(((ratioA + ratioB) / 2).toFixed(2));
+    const MIN   = 10;
+    const ratio = (Math.min(lenA, MIN) + Math.min(lenB, MIN)) / (2 * MIN);
+    return parseFloat(ratio.toFixed(2));
   }
 
-  /**
-   * Upsert dupe candidates into the DB (insert or update similarity score).
-   * Uses ON DUPLICATE KEY behaviour via a query — the unique constraint is
-   * (original_product_id, dupe_product_id).
-   */
   private async upsertCandidates(
-    candidates: DupeCandidate[],
+    candidates: (DupeCandidate & { rank: number; featured: boolean })[],
     subcategory: string,
   ): Promise<{ c: number; u: number }> {
     let c = 0;
@@ -325,37 +319,46 @@ export class DupeEngineService {
         const existing = await this.dupesRepo.findOne({
           where: {
             originalProduct: { id: cand.original.id },
-            dupeProduct: { id: cand.dupe.id },
+            dupeProduct:     { id: cand.dupe.id },
           },
         });
 
         const scoreInt = Math.round(cand.similarity.compositeScore * 100);
-        const now = new Date();
+        const now      = new Date();
+        const category = cand.original.category ?? cand.dupe.category ?? subcategory;
 
         if (existing) {
           await this.dupesRepo.update(existing.id, {
-            similarityScore: scoreInt,
-            savingsPercent: Math.round(cand.savingsPercent),
-            scoringMethod: 'jaccard+actives+form',
-            scoreConfidence: cand.similarity.confidence,
-            scoreVersion: SCORE_VERSION,
+            similarityScore:   scoreInt,
+            savingsPercent:    Math.round(cand.savingsPercent),
+            priceRatio:        parseFloat(cand.priceRatio.toFixed(2)),
+            dupeRank:          cand.rank,
+            dupeLabel:         this.dupeLabel(cand.similarity.compositeScore),
+            sharedActives:     cand.similarity.sharedActives,
+            isFeatured:        cand.featured,
+            scoringMethod:     'jaccard+actives+form-v2',
+            scoreConfidence:   cand.similarity.confidence,
+            scoreVersion:      SCORE_VERSION,
             scoreCalculatedAt: now,
           });
           u++;
         } else {
-          const category = cand.original.category ?? cand.dupe.category ?? subcategory;
           const newDupe = this.dupesRepo.create({
-            originalProduct: cand.original,
-            dupeProduct: cand.dupe,
-            similarityScore: scoreInt,
-            savingsPercent: Math.round(cand.savingsPercent),
+            originalProduct:   cand.original,
+            dupeProduct:       cand.dupe,
+            similarityScore:   scoreInt,
+            savingsPercent:    Math.round(cand.savingsPercent),
+            priceRatio:        parseFloat(cand.priceRatio.toFixed(2)),
+            dupeRank:          cand.rank,
+            dupeLabel:         this.dupeLabel(cand.similarity.compositeScore),
+            sharedActives:     cand.similarity.sharedActives,
             category,
-            scoringMethod: 'jaccard+actives+form',
-            scoreConfidence: cand.similarity.confidence,
-            scoreVersion: SCORE_VERSION,
+            isFeatured:        cand.featured,
+            isTrending:        false,
+            scoringMethod:     'jaccard+actives+form-v2',
+            scoreConfidence:   cand.similarity.confidence,
+            scoreVersion:      SCORE_VERSION,
             scoreCalculatedAt: now,
-            isFeatured: false,
-            isTrending: false,
           });
           await this.dupesRepo.save(newDupe);
           c++;

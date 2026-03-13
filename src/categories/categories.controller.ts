@@ -12,6 +12,12 @@ export class CategoriesController {
     return this.categoriesService.findAll();
   }
 
+  /** POST /categories/sync — derive categories from products table (no auth) */
+  @Post('sync')
+  sync() {
+    return this.categoriesService.syncFromProducts();
+  }
+
   @Get(':slug')
   findBySlug(@Param('slug') slug: string) {
     return this.categoriesService.findBySlug(slug);

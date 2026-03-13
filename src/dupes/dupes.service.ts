@@ -13,6 +13,10 @@ function mapDupe(d: Dupe) {
     id: d.id,
     similarityScore: d.similarityScore,
     savingsPercent: d.savingsPercent,
+    priceRatio: d.priceRatio ? Number(d.priceRatio) : null,
+    dupeRank: d.dupeRank ?? null,
+    dupeLabel: d.dupeLabel ?? null,
+    sharedActives: d.sharedActives ?? [],
     scoringMethod: d.scoringMethod,
     scoreConfidence: d.scoreConfidence,
     scoreVersion: d.scoreVersion,
@@ -28,24 +32,26 @@ function mapDupe(d: Dupe) {
       name: d.originalProduct.name,
       brand: d.originalProduct.brand,
       price: Number(d.originalProduct.price),
+      normalizedPriceInr: Number(d.originalProduct.normalizedPriceInr ?? d.originalProduct.price),
       currency: d.originalProduct.currency,
       platform: d.originalProduct.platform,
       store: d.originalProduct.store,
       subcategory: d.originalProduct.subcategory,
       image: d.originalProduct.imageUrl || '',
-      description: d.originalProduct.description || null,
+      sourceUrl: d.originalProduct.sourceUrl || null,
     },
     dupe: {
       id: d.dupeProduct.id,
       name: d.dupeProduct.name,
       brand: d.dupeProduct.brand,
       price: Number(d.dupeProduct.price),
+      normalizedPriceInr: Number(d.dupeProduct.normalizedPriceInr ?? d.dupeProduct.price),
       currency: d.dupeProduct.currency,
       platform: d.dupeProduct.platform,
       store: d.dupeProduct.store,
       subcategory: d.dupeProduct.subcategory,
       image: d.dupeProduct.imageUrl || '',
-      description: d.dupeProduct.description || null,
+      sourceUrl: d.dupeProduct.sourceUrl || null,
     },
   };
 }
@@ -221,6 +227,29 @@ export class DupesService {
   async remove(id: string) {
     await this.findOne(id);
     await this.dupesRepo.delete(id);
+  }
+
+  /**
+   * Get all dupes where the given product is the original (expensive) product,
+   * ranked by dupeRank ASC (best match first).
+   */
+  async findByProduct(productId: string) {
+    const dupes = await this.dupesRepo.find({
+      where: { originalProduct: { id: productId } },
+      relations: PRODUCT_RELATIONS,
+      order: { dupeRank: 'ASC', similarityScore: 'DESC' },
+    });
+    if (!dupes.length) {
+      // Also check if this product IS a dupe of something
+      const asOriginal = await this.dupesRepo.find({
+        where: { dupeProduct: { id: productId } },
+        relations: PRODUCT_RELATIONS,
+        order: { similarityScore: 'DESC' },
+        take: 5,
+      });
+      return { role: 'dupe', dupes: asOriginal.map(mapDupe) };
+    }
+    return { role: 'original', dupes: dupes.map(mapDupe) };
   }
 
   async recalculateStats(dupeId: string) {

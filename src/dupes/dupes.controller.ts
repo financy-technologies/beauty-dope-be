@@ -12,13 +12,17 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { DupesService } from './dupes.service';
+import { DupeEngineService } from './dupe-engine.service';
 import { CreateDupeDto } from './dto/create-dupe.dto';
 import { QueryDupesDto } from './dto/query-dupes.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('dupes')
 export class DupesController {
-  constructor(private dupesService: DupesService) {}
+  constructor(
+    private dupesService: DupesService,
+    private dupeEngine: DupeEngineService,
+  ) {}
 
   @Get()
   findAll(@Query() query: QueryDupesDto) {
@@ -33,6 +37,26 @@ export class DupesController {
   @Get('trending')
   findTrending(@Query('limit') limit?: number) {
     return this.dupesService.findTrending(limit ? Number(limit) : 5);
+  }
+
+  /**
+   * POST /dupes/run-detection
+   * Runs the full dupe detection pipeline over all products and saves results.
+   * No auth required — dev/admin use.
+   */
+  @Post('run-detection')
+  runDetection() {
+    return this.dupeEngine.runFullDetection();
+  }
+
+  /**
+   * GET /dupes/by-product/:productId
+   * Returns ranked dupes for a specific product.
+   * If the product is a dupe itself, returns what it duplicates.
+   */
+  @Get('by-product/:productId')
+  findByProduct(@Param('productId') productId: string) {
+    return this.dupesService.findByProduct(productId);
   }
 
   @Get(':id')

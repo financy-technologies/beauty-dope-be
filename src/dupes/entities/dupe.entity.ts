@@ -65,6 +65,22 @@ export class Dupe {
   @Column({ name: 'score_calculated_at', type: 'timestamp', nullable: true })
   scoreCalculatedAt: Date;
 
+  /** Rank among all dupes for the same originalProduct (1 = best match) */
+  @Column({ name: 'dupe_rank', nullable: true })
+  dupeRank: number;
+
+  /** Quality tier label */
+  @Column({ name: 'dupe_label', nullable: true, length: 20 })
+  dupeLabel: string;  // 'exact-match' | 'close-dupe' | 'inspired-by'
+
+  /** How many times more expensive the original is vs the dupe */
+  @Column('decimal', { name: 'price_ratio', precision: 5, scale: 2, nullable: true })
+  priceRatio: number;
+
+  /** Key actives shared between both products */
+  @Column('simple-json', { name: 'shared_actives', nullable: true })
+  sharedActives: string[];
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
