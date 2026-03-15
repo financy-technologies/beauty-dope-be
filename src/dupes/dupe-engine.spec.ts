@@ -135,8 +135,8 @@ describe('DupeEngineService', () => {
     const dupeTokens    = ['water', 'glycerin', 'niacinamide', 'retinol', 'hyaluronic-acid', 'ceramides', 'peptides', 'vitamin-c', 'squalane', 'tocopherol'];
 
     it('detects a clear dupe pair (high ingredient overlap + big price gap)', () => {
-      const luxury = makeProduct({ id: 'luxury', price: 8000, normalizedPriceInr: 8000, ingredientsTokens: highEndTokens });
-      const budget = makeProduct({ id: 'budget', price: 800,  normalizedPriceInr: 800,  ingredientsTokens: dupeTokens });
+      const luxury = makeProduct({ id: 'luxury', brand: 'LuxBrand',   price: 5000, normalizedPriceInr: 5000, ingredientsTokens: highEndTokens });
+      const budget = makeProduct({ id: 'budget', brand: 'BudgetBrand', price: 800,  normalizedPriceInr: 800,  ingredientsTokens: dupeTokens });
 
       const candidates = engine.detectInSubcategory([luxury, budget], 'serum');
 
@@ -165,8 +165,8 @@ describe('DupeEngineService', () => {
     });
 
     it('ranks candidates by composite score descending', () => {
-      const luxury = makeProduct({ id: 'luxury', price: 8000, normalizedPriceInr: 8000, ingredientsTokens: highEndTokens });
-      const goodDupe = makeProduct({ id: 'good',  price: 800,  normalizedPriceInr: 800,  ingredientsTokens: dupeTokens }); // ~90% overlap
+      const luxury = makeProduct({ id: 'luxury', brand: 'LuxBrand',   price: 4000, normalizedPriceInr: 4000, ingredientsTokens: highEndTokens });
+      const goodDupe = makeProduct({ id: 'good',  brand: 'GoodBrand',  price: 800,  normalizedPriceInr: 800,  ingredientsTokens: dupeTokens }); // ~90% overlap
       const weakDupe = makeProduct({ id: 'weak',  price: 600,  normalizedPriceInr: 600,  ingredientsTokens: ['water', 'glycerin', 'niacinamide'] }); // lower overlap
 
       const candidates = engine.detectInSubcategory([luxury, goodDupe, weakDupe], 'serum');
@@ -223,14 +223,16 @@ describe('DupeEngineService', () => {
     it('creates dupe records for qualifying pairs', async () => {
       const highEnd = makeProduct({
         id: 'luxury',
+        brand: 'LuxBrand',
         subcategory: 'serum',
-        price: 8000,
-        normalizedPriceInr: 8000,
+        price: 4000,
+        normalizedPriceInr: 4000,
         ingredientsTokens: ['water', 'glycerin', 'niacinamide', 'retinol', 'hyaluronic-acid', 'ceramides', 'peptides', 'vitamin-c', 'squalane', 'panthenol'],
         ingredients: 'Aqua, Glycerin, Niacinamide, Retinol, Sodium Hyaluronate, Ceramides, Peptides, Vitamin C, Squalane, Panthenol',
       });
       const budget = makeProduct({
         id: 'budget',
+        brand: 'BudgetBrand',
         subcategory: 'serum',
         price: 800,
         normalizedPriceInr: 800,
@@ -250,14 +252,16 @@ describe('DupeEngineService', () => {
     it('updates rather than creates when dupe pair already exists', async () => {
       const highEnd = makeProduct({
         id: 'luxury',
+        brand: 'LuxBrand',
         subcategory: 'serum',
-        price: 8000,
-        normalizedPriceInr: 8000,
+        price: 4000,
+        normalizedPriceInr: 4000,
         ingredientsTokens: ['water', 'glycerin', 'niacinamide', 'retinol', 'hyaluronic-acid', 'ceramides', 'peptides', 'vitamin-c', 'squalane', 'panthenol'],
         ingredients: 'existing',
       });
       const budget = makeProduct({
         id: 'budget',
+        brand: 'BudgetBrand',
         subcategory: 'serum',
         price: 800,
         normalizedPriceInr: 800,

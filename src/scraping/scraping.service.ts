@@ -139,6 +139,7 @@ export class ScrapingService {
         brand: p.brand,
         price: `${p.price} ${p.currency}`,
         size: p.size ?? null,
+        quantity: p.quantity ?? null,
         sourceUrl: p.sourceUrl,
         ingredientRaw: p.ingredients?.slice(0, 120) ?? null,
         ingredientTokens: p.ingredients
@@ -322,6 +323,7 @@ export class ScrapingService {
         imageUrl: scraped.imageUrl ?? existing.imageUrl,
         ingredients: scraped.ingredients ?? existing.ingredients,
         ingredientsTokens: tokens.length ? tokens : existing.ingredientsTokens,
+        ...(scraped.quantity !== undefined && { quantity: scraped.quantity }),
         scrapedAt: scraped.scrapedAt,
       });
       return { created: false };
@@ -339,6 +341,7 @@ export class ScrapingService {
       category: scraped.category,
       subcategory: scraped.subcategory,
       size: scraped.size,
+      quantity: scraped.quantity,
       ingredients: scraped.ingredients,
       ingredientsTokens: tokens,
       description: scraped.description,

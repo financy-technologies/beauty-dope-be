@@ -59,6 +59,7 @@ export interface ScrapedProduct {
   category: string;          // canonical from CATEGORY_MAP
   subcategory: string;       // canonical from CATEGORY_MAP
   size?: string;             // e.g. "50ml", "1.7oz"
+  quantity?: number;         // available stock quantity
   ingredients?: string;      // raw INCI string
   description?: string;
   sourceUrl: string;

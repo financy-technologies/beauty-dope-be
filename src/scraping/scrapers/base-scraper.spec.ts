@@ -92,8 +92,8 @@ describe('BaseScraper utilities', () => {
 
       await scraper.scrape();
 
-      // CATEGORY_MAP has skin(8) + makeup(10) + hair(7) + bath-and-body(6) = 31 subcategories
-      expect(spy).toHaveBeenCalledTimes(31);
+      // CATEGORY_MAP has skin(9) + makeup(10) + hair(7) + bath-and-body(6) = 32 subcategories
+      expect(spy).toHaveBeenCalledTimes(32);
     });
 
     it('filters to requested category only', async () => {
@@ -103,8 +103,8 @@ describe('BaseScraper utilities', () => {
 
       await scraper.scrape(['skin']);
 
-      // skin has 8 subcategories
-      expect(spy).toHaveBeenCalledTimes(8);
+      // skin has 9 subcategories
+      expect(spy).toHaveBeenCalledTimes(9);
     });
 
     it('continues after a subcategory throws and records the error', async () => {
@@ -140,8 +140,8 @@ describe('BaseScraper utilities', () => {
 
       const result = await scraper.scrape(['skin']);
 
-      // 8 subcategories × 1 product each = 8 products
-      expect(result.products.length).toBe(8);
+      // 9 subcategories × 1 product each = 9 products
+      expect(result.products.length).toBe(9);
       expect(result.platform).toBe('test-platform');
     });
   });

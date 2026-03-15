@@ -93,6 +93,7 @@ function printProduct(p: ScrapedProduct, subcategory: string) {
   console.log(`      Brand       : ${p.brand}`);
   console.log(`      Price       : ${p.price} ${p.currency}`);
   console.log(`      Size        : ${p.size || dim('—')}`);
+  console.log(`      Quantity    : ${p.quantity !== undefined ? p.quantity : dim('—')}`);
   console.log(`      URL         : ${dim(p.sourceUrl)}`);
   if (p.ingredients) {
     const preview = p.ingredients.slice(0, 100);

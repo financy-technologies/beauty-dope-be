@@ -309,6 +309,7 @@ export class NykaaScraper extends BaseScraper {
           category,
           subcategory,
           size:        item.pack_size ?? '',
+          quantity:    this.parseQuantity(item.quantity ?? item.qty ?? item.stock_qty ?? item.stockQty),
           ingredients,
           description: '',
           sourceUrl,
@@ -366,5 +367,11 @@ export class NykaaScraper extends BaseScraper {
   private parsePrice(raw: any): number {
     if (!raw) return 0;
     return parseFloat(String(raw).replace(/[^0-9.]/g, '')) || 0;
+  }
+
+  private parseQuantity(raw: any): number | undefined {
+    if (raw === null || raw === undefined) return undefined;
+    const n = parseInt(String(raw), 10);
+    return isNaN(n) ? undefined : n;
   }
 }

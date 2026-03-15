@@ -52,6 +52,9 @@ export class Product {
   @Column({ nullable: true })
   size: string;
 
+  @Column({ type: 'int', nullable: true })
+  quantity: number;
+
   @Column({ type: 'text', nullable: true })
   ingredients: string;
 

@@ -57,6 +57,7 @@ async function upsert(
       imageUrl:           scraped.imageUrl ?? existing.imageUrl,
       ingredients:        scraped.ingredients ?? existing.ingredients,
       ingredientsTokens:  tokens.length ? tokens : existing.ingredientsTokens,
+      ...(scraped.quantity !== undefined && { quantity: scraped.quantity }),
       scrapedAt:          scraped.scrapedAt,
     });
     return 'updated';
@@ -74,6 +75,7 @@ async function upsert(
     category:           scraped.category,
     subcategory:        scraped.subcategory,
     size:               scraped.size,
+    quantity:           scraped.quantity,
     ingredients:        scraped.ingredients,
     ingredientsTokens:  tokens,
     description:        scraped.description,
