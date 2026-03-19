@@ -20,6 +20,7 @@ async function bootstrap() {
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
+      if (process.env.CORS_ORIGIN === '*') return callback(null, true);
       // Allow any localhost port in development
       if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return callback(null, true);
       // Allow explicit CORS_ORIGIN env var
