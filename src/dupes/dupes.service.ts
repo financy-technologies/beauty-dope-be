@@ -130,7 +130,7 @@ export class DupesService {
         qb.orderBy('dupe.totalVotes', 'DESC');
         break;
       case 'confidence':
-        qb.orderBy('IFNULL(dupe.scoreConfidence, -1)', 'DESC');
+        qb.orderBy('dupe.scoreConfidence', 'DESC');
         break;
       default:
         qb.orderBy('dupe.createdAt', 'DESC');
