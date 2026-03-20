@@ -108,6 +108,18 @@ export class ScrapingPreviewController {
    *
    * Valid sources: nykaa | purplle | sephora | ulta
    */
+  /**
+   * POST /api/scraping/preview/push-products
+   * Body: { "products": [...] }
+   *
+   * Upserts an array of products from a local DB push script.
+   * Use the push-to-prod.mjs script to call this endpoint.
+   */
+  @Post('push-products')
+  pushProducts(@Body('products') products: any[]) {
+    return this.scrapingService.pushProducts(products ?? []);
+  }
+
   @Get('test-scraper')
   testScraper(
     @Query('source') source: string,

@@ -303,6 +303,32 @@ export class ScrapingService {
    * If found → update price, ingredients, image (things that may drift).
    * If new  → insert with tokenized ingredients.
    */
+  async pushProducts(
+    products: Partial<Product>[],
+  ): Promise<{ created: number; updated: number }> {
+    let created = 0, updated = 0;
+    for (const p of products) {
+      if (!p.externalId) continue;
+      const existing = await this.productsRepo.findOne({ where: { externalId: p.externalId } });
+      if (existing) {
+        await this.productsRepo.update(existing.id, {
+          price: p.price ?? existing.price,
+          normalizedPriceInr: p.normalizedPriceInr ?? existing.normalizedPriceInr,
+          imageUrl: p.imageUrl ?? existing.imageUrl,
+          ingredients: p.ingredients ?? existing.ingredients,
+          ingredientsTokens: p.ingredientsTokens?.length ? p.ingredientsTokens : existing.ingredientsTokens,
+          quantity: p.quantity ?? existing.quantity,
+          scrapedAt: p.scrapedAt ?? existing.scrapedAt,
+        });
+        updated++;
+      } else {
+        await this.productsRepo.save(this.productsRepo.create(p));
+        created++;
+      }
+    }
+    return { created, updated };
+  }
+
   private async upsertProduct(
     scraped: ScrapedProduct,
   ): Promise<{ created: boolean }> {
