@@ -16,6 +16,7 @@ import { DupeEngineService } from './dupe-engine.service';
 import { CreateDupeDto } from './dto/create-dupe.dto';
 import { QueryDupesDto } from './dto/query-dupes.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FilterDupesByIngredientsDto, CompareIngredientsDto } from './dto/filter-dupes-by-ingredients.dto';
 
 @Controller('dupes')
 export class DupesController {
@@ -62,6 +63,25 @@ export class DupesController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.dupesService.findOne(id);
+  }
+
+  /**
+   * POST /dupes/filter-by-ingredients
+   * Find dupes for a product with ingredient preferences (include/exclude)
+   * and skin type preferences
+   */
+  @Post('filter-by-ingredients')
+  async filterByIngredients(@Body() dto: FilterDupesByIngredientsDto) {
+    return this.dupesService.findDupesWithIngredientFilters(dto);
+  }
+
+  /**
+   * POST /dupes/compare-ingredients
+   * Compare ingredients between two products
+   */
+  @Post('compare-ingredients')
+  async compareIngredients(@Body() dto: CompareIngredientsDto) {
+    return this.dupesService.compareProductIngredients(dto);
   }
 
   @UseGuards(JwtAuthGuard)

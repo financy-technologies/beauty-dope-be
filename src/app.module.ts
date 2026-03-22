@@ -11,6 +11,7 @@ import { ProfilesModule } from './profiles/profiles.module';
 import { SearchModule } from './search/search.module';
 import { ScrapingModule } from './scraping/scraping.module';
 import { AdminModule } from './admin/admin.module';
+import { IngredientsModule } from './ingredients/ingredients.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { AdminModule } from './admin/admin.module';
     AuthModule,
     ProductsModule,
     CategoriesModule,
+    IngredientsModule,
     DupesModule,
     ReviewsModule,
     FavoritesModule,

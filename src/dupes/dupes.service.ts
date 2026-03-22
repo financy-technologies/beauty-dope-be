@@ -5,6 +5,9 @@ import { Dupe } from './entities/dupe.entity';
 import { Product } from '../products/entities/product.entity';
 import { CreateDupeDto } from './dto/create-dupe.dto';
 import { QueryDupesDto } from './dto/query-dupes.dto';
+import { FilterDupesByIngredientsDto, CompareIngredientsDto, IngredientComparisonResponseDto } from './dto/filter-dupes-by-ingredients.dto';
+import { IngredientsService } from '../ingredients/ingredients.service';
+import { IngredientParserService } from '../scraping/ingredient-parser.service';
 
 const PRODUCT_RELATIONS = ['originalProduct', 'dupeProduct'];
 
@@ -63,6 +66,8 @@ export class DupesService {
     private dupesRepo: Repository<Dupe>,
     @InjectRepository(Product)
     private productsRepo: Repository<Product>,
+    private ingredientsService: IngredientsService,
+    private ingredientParser: IngredientParserService,
   ) {}
 
   async findAll(query: QueryDupesDto) {
@@ -265,5 +270,197 @@ export class DupesService {
       totalVotes: parseInt(result.totalVotes) || 0,
       avgRating: parseFloat(result.avgRating) || 0,
     });
+  }
+
+  /**
+   * Find dupes for a product with ingredient inclusion/exclusion filters
+   * and re-rank based on skin type preferences
+   */
+  async findDupesWithIngredientFilters(dto: FilterDupesByIngredientsDto) {
+    const original = await this.productsRepo.findOne({
+      where: { id: dto.originalProductId },
+    });
+    if (!original) throw new NotFoundException(`Product ${dto.originalProductId} not found`);
+
+    // Get all dupes for the original product
+    const dupes = await this.dupesRepo.find({
+      where: { originalProduct: { id: dto.originalProductId } },
+      relations: PRODUCT_RELATIONS,
+      order: { dupeRank: 'ASC' },
+    });
+
+    if (!dupes.length) {
+      return { data: [], total: 0 };
+    }
+
+    // Filter based on include/exclude ingredients
+    let filtered = dupes;
+
+    if (dto.includeIngredients && dto.includeIngredients.length > 0) {
+      const includeSet = new Set(dto.includeIngredients.map((i) => i.toLowerCase()));
+      filtered = filtered.filter((d) => {
+        const tokens = new Set((d.dupeProduct.ingredientsTokens || []).map((t) => t.toLowerCase()));
+        const hasAll = Array.from(includeSet).every((inc) => tokens.has(inc));
+        return hasAll;
+      });
+    }
+
+    if (dto.excludeIngredients && dto.excludeIngredients.length > 0) {
+      const excludeSet = new Set(dto.excludeIngredients.map((i) => i.toLowerCase()));
+      filtered = filtered.filter((d) => {
+        const tokens = new Set((d.dupeProduct.ingredientsTokens || []).map((t) => t.toLowerCase()));
+        const hasNone = Array.from(excludeSet).every((exc) => !tokens.has(exc));
+        return hasNone;
+      });
+    }
+
+    // Score for skin type suitability if specified
+    if (dto.forSkinType) {
+      for (const dupe of filtered) {
+        const skinScore = await this.ingredientsService.scoreForSkinType(
+          dupe.dupeProduct.ingredientsTokens || [],
+          dto.forSkinType as any,
+        );
+        (dupe as any).skinTypeAdjustedScore = skinScore;
+      }
+
+      // Re-sort by skin type score combined with similarity
+      filtered.sort((a: any, b: any) => {
+        const scoreA = (a.similarityScore / 100) * 0.6 + (a.skinTypeAdjustedScore / 100) * 0.4;
+        const scoreB = (b.similarityScore / 100) * 0.6 + (b.skinTypeAdjustedScore / 100) * 0.4;
+        return scoreB - scoreA;
+      });
+    }
+
+    // Apply offset/limit
+    const paginated = filtered.slice(dto.offset, dto.offset + (dto.limit || 10));
+
+    return {
+      data: paginated.map((d) => ({
+        ...mapDupe(d),
+        skinTypeAdjustedScore: (d as any).skinTypeAdjustedScore,
+        ingredientMatches:
+          dto.includeIngredients?.length || 0 +
+          (filtered.length > 0 ? ` / ${dto.includeIngredients?.length || 0}` : ''),
+      })),
+      total: filtered.length,
+      filters_applied: {
+        includeCount: dto.includeIngredients?.length || 0,
+        excludeCount: dto.excludeIngredients?.length || 0,
+        forSkinType: dto.forSkinType,
+      },
+    };
+  }
+
+  /**
+   * Compare ingredients between two products
+   */
+  async compareProductIngredients(dto: CompareIngredientsDto): Promise<IngredientComparisonResponseDto> {
+    const product1 = await this.productsRepo.findOne({ where: { id: dto.productId1 } });
+    if (!product1) throw new NotFoundException(`Product ${dto.productId1} not found`);
+
+    const product2 = await this.productsRepo.findOne({ where: { id: dto.productId2 } });
+    if (!product2) throw new NotFoundException(`Product ${dto.productId2} not found`);
+
+    const tokens1 = product1.ingredientsTokens || [];
+    const tokens2 = product2.ingredientsTokens || [];
+
+    // Get ingredient comparison
+    const { shared, uniqueList1, uniqueList2, sharedEffects } =
+      await this.ingredientsService.compareIngredientLists(tokens1, tokens2);
+
+    // Get detailed ingredient info
+    const getIngredientEffects = async (names: string[]) => {
+      const details = [];
+      for (const name of names) {
+        try {
+          const ing = await this.ingredientsService.getIngredientInternal(name);
+          if (ing) {
+            details.push({
+              name: ing.canonicalName,
+              effects: ing.effects,
+            });
+          }
+        } catch {
+          // Skip if not found
+        }
+      }
+      return details;
+    };
+
+    const [sharedDetailed, uniqueDetailed1, uniqueDetailed2] = await Promise.all([
+      getIngredientEffects(shared),
+      getIngredientEffects(uniqueList1),
+      getIngredientEffects(uniqueList2),
+    ]);
+
+    // Get skin type comparison if specified
+    let skinTypeComparison = undefined;
+    if (dto.forSkinType) {
+      const score1 = await this.ingredientsService.scoreForSkinType(tokens1, dto.forSkinType as any);
+      const score2 = await this.ingredientsService.scoreForSkinType(tokens2, dto.forSkinType as any);
+      skinTypeComparison = {
+        product1_score_forSkinType: score1,
+        product2_score_forSkinType: score2,
+        betterFor: score1 > score2 ? 1 : score2 > score1 ? 2 : null,
+      };
+    }
+
+    // Calculate overall similarity (simple Jaccard)
+    const set1 = new Set(tokens1);
+    const set2 = new Set(tokens2);
+    const intersection = new Set([...set1].filter((x) => set2.has(x)));
+    const union = new Set([...set1, ...set2]);
+    const overallSimilarity = union.size > 0 ? (intersection.size / union.size) * 100 : 0;
+
+    // Calculate price per unit
+    const getPricePerUnit = (product: Product): number | undefined => {
+      if (!product.normalizedPriceInr || !product.size) return undefined;
+      const price = Number(product.normalizedPriceInr);
+      try {
+        // Simple regex to extract numeric value from size string
+        const match = product.size.match(/(\d+)/);
+        if (match) {
+          const sizeValue = parseFloat(match[1]);
+          return price / sizeValue;
+        }
+      } catch {
+        // Ignore parse errors
+      }
+      return undefined;
+    };
+
+    return {
+      product1: {
+        id: product1.id,
+        name: product1.name,
+        brand: product1.brand,
+        price: Number(product1.price),
+        currency: product1.currency || 'INR',
+        imageUrl: product1.imageUrl,
+      },
+      product2: {
+        id: product2.id,
+        name: product2.name,
+        brand: product2.brand,
+        price: Number(product2.price),
+        currency: product2.currency || 'INR',
+        imageUrl: product2.imageUrl,
+      },
+      sharedIngredients: sharedDetailed,
+      uniqueToProduct1: uniqueDetailed1,
+      uniqueToProduct2: uniqueDetailed2,
+      sharedEffects,
+      effectDifferences: {
+        onlyIn1: [],
+        onlyIn2: [],
+      },
+      skinTypeComparison,
+      pricePerUnit: {
+        product1: getPricePerUnit(product1),
+        product2: getPricePerUnit(product2),
+      },
+      overallSimilarity: Math.round(overallSimilarity),
+    };
   }
 }

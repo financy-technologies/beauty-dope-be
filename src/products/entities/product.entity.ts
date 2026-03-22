@@ -61,6 +61,32 @@ export class Product {
   @Column('simple-json', { name: 'ingredients_tokens', nullable: true })
   ingredientsTokens: string[];
 
+  @Column('simple-json', { name: 'ingredient_breakdown', nullable: true })
+  ingredientBreakdown?: {
+    tokenCount: number;
+    actives: string[];
+    humectants: string[];
+    emollients: string[];
+    preservatives: string[];
+    chelatingAgents: string[];
+    comedogenicCount: number;
+    maxComedogenicity: number;
+    fungalAcneSafe: boolean;
+    pregnancySafe: boolean;
+  };
+
+  @Column('simple-json', { name: 'skin_type_suitability', nullable: true })
+  skinTypeSuitability?: {
+    dry: number;
+    oily: number;
+    sensitive: number;
+    combination: number;
+    normal: number;
+  };
+
+  @Column('simple-json', { name: 'skin_type_recommended_for', nullable: true })
+  skinTypeRecommendedFor?: string[];
+
   @Column({ type: 'text', nullable: true })
   description: string;
 
