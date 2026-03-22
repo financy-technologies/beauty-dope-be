@@ -37,4 +37,13 @@ export class ProductsService {
     await this.findOne(id);
     await this.productsRepo.delete(id);
   }
+
+  async flag(id: string, reason: string, note?: string) {
+    await this.findOne(id);
+    await this.productsRepo.update(id, {
+      flaggedReason: reason,
+      flagNote: note ?? null,
+      flaggedAt: new Date(),
+    });
+  }
 }

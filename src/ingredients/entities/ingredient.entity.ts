@@ -6,6 +6,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { IngredientEffect } from './ingredient-effect.entity';
+import { IngredientAlias } from './ingredient-alias.entity';
 
 export interface SkinTypeScores {
   dry: number;
@@ -21,6 +22,8 @@ export interface ConcentrationRange {
   unit: 'percent' | 'ppm';
 }
 
+export type IngredientStatus = 'verified' | 'pending_review' | 'auto_imported';
+
 @Entity('ingredients')
 export class Ingredient {
   @PrimaryGeneratedColumn('uuid')
@@ -29,20 +32,35 @@ export class Ingredient {
   @Column({ unique: true })
   canonicalName: string;
 
+  // Status: verified = fully curated, pending_review = imported but needs enrichment, auto_imported = from CosIng/PubChem
+  @Column({ default: 'pending_review' })
+  status: IngredientStatus;
+
+  // EU CosIng / CAS identifiers
+  @Column({ nullable: true })
+  casNumber?: string;
+
+  @Column({ nullable: true })
+  ecNumber?: string;
+
+  // Standardized CosIng function labels (e.g. EMOLLIENT, HUMECTANT, PRESERVATIVE)
+  @Column('simple-json', { nullable: true })
+  cosingFunctions?: string[];
+
   @Column('simple-json')
   inciNames: string[];
 
   @Column()
-  category: string; // Active, Humectant, Emollient, Preservative, Chelating Agent, etc.
+  category: string;
 
   @Column('simple-json')
-  effects: string[]; // anti-aging, hydrating, brightening, anti-inflammatory, exfoliating, soothing, etc.
+  effects: string[];
 
   @Column('simple-json')
   skinTypeScores: SkinTypeScores;
 
-  @Column({ type: 'int' })
-  comedogenicity: number; // 0-5 scale
+  @Column({ type: 'int', default: 0 })
+  comedogenicity: number;
 
   @Column({ default: true })
   fungalAcneSafe: boolean;
@@ -54,20 +72,23 @@ export class Ingredient {
   concentration?: ConcentrationRange;
 
   @Column('simple-json', { nullable: true })
-  synergies?: string[]; // ingredient canonical names that work well together
+  synergies?: string[];
 
   @Column('simple-json', { nullable: true })
-  conflicts?: string[]; // ingredient canonical names to avoid combining with
+  conflicts?: string[];
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text', nullable: true })
   description: string;
 
   @Column('simple-json', { nullable: true })
-  sources?: string[]; // research citations
+  sources?: string[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @OneToMany(() => IngredientEffect, (effect) => effect.ingredient, { cascade: true })
   ingredientEffects: IngredientEffect[];
+
+  @OneToMany(() => IngredientAlias, (alias) => alias.ingredient, { cascade: true })
+  aliases: IngredientAlias[];
 }

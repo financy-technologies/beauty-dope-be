@@ -103,6 +103,22 @@ export class AdminService {
     await this.productsRepo.delete(id);
   }
 
+  async listFlaggedProducts(page = 1, limit = 20) {
+    const [data, total] = await this.productsRepo.findAndCount({
+      where: { flaggedReason: Like('%') } as any,
+      order: { flaggedAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { data, total, page, limit };
+  }
+
+  async clearFlag(id: string) {
+    await this.getProduct(id);
+    await this.productsRepo.update(id, { flaggedReason: null, flagNote: null, flaggedAt: null } as any);
+    return this.getProduct(id);
+  }
+
   // ─── Dupes ────────────────────────────────────────────────────
   async listDupes(page = 1, limit = 20) {
     const [data, total] = await this.dupesRepo.findAndCount({

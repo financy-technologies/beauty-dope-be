@@ -10,10 +10,29 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { IsString, IsEnum, IsOptional } from 'class-validator';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+export enum FlagReason {
+  WRONG_INGREDIENTS = 'wrong_ingredients',
+  WRONG_PRICE = 'wrong_price',
+  WRONG_IMAGE = 'wrong_image',
+  DUPLICATE = 'duplicate',
+  DISCONTINUED = 'discontinued',
+  OTHER = 'other',
+}
+
+export class FlagProductDto {
+  @IsEnum(FlagReason)
+  reason: FlagReason;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
 
 @Controller('products')
 export class ProductsController {
@@ -46,5 +65,12 @@ export class ProductsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string) {
     return this.productsService.remove(id);
+  }
+
+  // Public — any user can flag a product for review
+  @Post(':id/flag')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  flag(@Param('id') id: string, @Body() dto: FlagProductDto) {
+    return this.productsService.flag(id, dto.reason, dto.note);
   }
 }

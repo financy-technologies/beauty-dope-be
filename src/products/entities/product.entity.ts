@@ -103,6 +103,16 @@ export class Product {
   @Column({ name: 'scraped_at', type: 'timestamp', nullable: true })
   scrapedAt: Date;
 
+  // User-submitted correction flags
+  @Column({ name: 'flagged_reason', nullable: true })
+  flaggedReason: string;
+
+  @Column({ name: 'flag_note', type: 'text', nullable: true })
+  flagNote: string;
+
+  @Column({ name: 'flagged_at', type: 'timestamp', nullable: true })
+  flaggedAt: Date;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

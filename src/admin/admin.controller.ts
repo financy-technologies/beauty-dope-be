@@ -16,6 +16,17 @@ export class AdminController {
     return this.ingredientsSeedService.seed();
   }
 
+  // Flagged products
+  @Get('flagged-products')
+  listFlaggedProducts(@Query('page') page = 1, @Query('limit') limit = 20) {
+    return this.adminService.listFlaggedProducts(+page, +limit);
+  }
+
+  @Patch('flagged-products/:id/clear')
+  clearFlag(@Param('id') id: string) {
+    return this.adminService.clearFlag(id);
+  }
+
   // Stats
   @Get('stats')
   getStats() { return this.adminService.getStats(); }
