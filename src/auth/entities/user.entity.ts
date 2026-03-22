@@ -25,6 +25,9 @@ export class User {
   @Column({ name: 'display_name', nullable: true })
   displayName: string;
 
+  @Column({ name: 'is_admin', default: false })
+  isAdmin: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

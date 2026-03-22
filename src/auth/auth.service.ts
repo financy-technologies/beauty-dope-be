@@ -66,13 +66,14 @@ export class AuthService {
   }
 
   private issueToken(user: User) {
-    const payload = { sub: user.id, email: user.email };
+    const payload = { sub: user.id, email: user.email, isAdmin: user.isAdmin };
     return {
       accessToken: this.jwtService.sign(payload),
       user: {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        isAdmin: user.isAdmin,
       },
     };
   }
