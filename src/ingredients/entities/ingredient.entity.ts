@@ -3,7 +3,6 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  Index,
   OneToMany,
 } from 'typeorm';
 import { IngredientEffect } from './ingredient-effect.entity';
@@ -28,7 +27,6 @@ export class Ingredient {
   id: string;
 
   @Column({ unique: true })
-  @Index()
   canonicalName: string;
 
   @Column('simple-json')
