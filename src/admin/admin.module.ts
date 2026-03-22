@@ -7,11 +7,13 @@ import { Product } from '../products/entities/product.entity';
 import { Dupe } from '../dupes/entities/dupe.entity';
 import { Review } from '../reviews/entities/review.entity';
 import { AuthModule } from '../auth/auth.module';
+import { IngredientsModule } from '../ingredients/ingredients.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Product, Dupe, Review]),
     AuthModule,
+    IngredientsModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

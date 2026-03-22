@@ -1,11 +1,20 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AdminGuard } from './admin.guard';
+import { IngredientsSeedService } from '../database/seeds/ingredients.seed';
 
 @Controller('admin')
 @UseGuards(AdminGuard)
 export class AdminController {
-  constructor(private adminService: AdminService) {}
+  constructor(
+    private adminService: AdminService,
+    private ingredientsSeedService: IngredientsSeedService,
+  ) {}
+
+  @Post('seed-ingredients')
+  seedIngredients() {
+    return this.ingredientsSeedService.seed();
+  }
 
   // Stats
   @Get('stats')
