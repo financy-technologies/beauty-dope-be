@@ -4,12 +4,14 @@ import { Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { IngredientParserService } from '../ingredients/ingredient-parser.service';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private productsRepo: Repository<Product>,
+    private ingredientParser: IngredientParserService,
   ) {}
 
   findAll() {
@@ -20,6 +22,14 @@ export class ProductsService {
     const product = await this.productsRepo.findOne({ where: { id } });
     if (!product) throw new NotFoundException(`Product ${id} not found`);
     return product;
+  }
+
+  async getWithParsedIngredients(id: string) {
+    const product = await this.findOne(id);
+    const parsedIngredients = product.ingredients
+      ? await this.ingredientParser.parseIngredientList(product.ingredients)
+      : [];
+    return { ...product, parsedIngredients };
   }
 
   create(dto: CreateProductDto) {

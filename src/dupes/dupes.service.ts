@@ -7,7 +7,7 @@ import { CreateDupeDto } from './dto/create-dupe.dto';
 import { QueryDupesDto } from './dto/query-dupes.dto';
 import { FilterDupesByIngredientsDto, CompareIngredientsDto, IngredientComparisonResponseDto } from './dto/filter-dupes-by-ingredients.dto';
 import { IngredientsService } from '../ingredients/ingredients.service';
-import { IngredientParserService } from '../scraping/ingredient-parser.service';
+import { IngredientParserService } from '../ingredients/ingredient-parser.service';
 
 const PRODUCT_RELATIONS = ['originalProduct', 'dupeProduct'];
 
@@ -186,7 +186,32 @@ export class DupesService {
       relations: PRODUCT_RELATIONS,
     });
     if (!dupe) throw new NotFoundException(`Dupe ${id} not found`);
-    return mapDupe(dupe);
+
+    const base = mapDupe(dupe);
+
+    // Parse both products' ingredient lists — graceful, never throws for unknowns
+    const [parsedOriginal, parsedDupe] = await Promise.all([
+      dupe.originalProduct.ingredients
+        ? this.ingredientParser.parseIngredientList(dupe.originalProduct.ingredients)
+        : Promise.resolve([]),
+      dupe.dupeProduct.ingredients
+        ? this.ingredientParser.parseIngredientList(dupe.dupeProduct.ingredients)
+        : Promise.resolve([]),
+    ]);
+
+    return {
+      ...base,
+      original: {
+        ...base.original,
+        rawIngredients: dupe.originalProduct.ingredients ?? null,
+        parsedIngredients: parsedOriginal,
+      },
+      dupe: {
+        ...base.dupe,
+        rawIngredients: dupe.dupeProduct.ingredients ?? null,
+        parsedIngredients: parsedDupe,
+      },
+    };
   }
 
   async create(dto: CreateDupeDto) {
