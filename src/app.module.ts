@@ -12,6 +12,7 @@ import { SearchModule } from './search/search.module';
 import { ScrapingModule } from './scraping/scraping.module';
 import { AdminModule } from './admin/admin.module';
 import { IngredientsModule } from './ingredients/ingredients.module';
+import { RewardsModule } from './rewards/rewards.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { IngredientsModule } from './ingredients/ingredients.module';
     ReviewsModule,
     FavoritesModule,
     ProfilesModule,
+    RewardsModule,
     SearchModule,
     ScrapingModule,
     AdminModule,

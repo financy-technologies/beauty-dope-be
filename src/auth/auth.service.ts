@@ -11,6 +11,8 @@ import { User } from './entities/user.entity';
 import { Profile } from '../profiles/entities/profile.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RewardsService } from '../rewards/rewards.service';
+import { TransactionType } from '../rewards/entities/point-transaction.entity';
 
 @Injectable()
 export class AuthService {
@@ -20,6 +22,7 @@ export class AuthService {
     @InjectRepository(Profile)
     private profilesRepo: Repository<Profile>,
     private jwtService: JwtService,
+    private rewardsService: RewardsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -40,6 +43,14 @@ export class AuthService {
       displayName: dto.displayName || dto.email,
     });
     await this.profilesRepo.save(profile);
+
+    // Award welcome points
+    await this.rewardsService.earnPoints(
+      user.id,
+      50,
+      TransactionType.SIGNUP,
+      'Welcome to Skinevora! 🎉',
+    );
 
     return this.issueToken(user);
   }

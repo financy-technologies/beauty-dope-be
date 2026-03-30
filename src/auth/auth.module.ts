@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from './entities/user.entity';
 import { Profile } from '../profiles/entities/profile.entity';
+import { RewardsModule } from '../rewards/rewards.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Profile } from '../profiles/entities/profile.entity';
       secret: process.env.JWT_SECRET || 'changeme',
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
     }),
+    RewardsModule,
   ],
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],

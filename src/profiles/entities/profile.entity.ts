@@ -9,6 +9,22 @@ import {
 } from 'typeorm';
 import { User } from '../../auth/entities/user.entity';
 
+export enum SkinType {
+  DRY = 'dry',
+  OILY = 'oily',
+  COMBINATION = 'combination',
+  NORMAL = 'normal',
+  SENSITIVE = 'sensitive',
+}
+
+export enum AgeRange {
+  UNDER_20 = 'under-20',
+  TWENTIES = '20s',
+  THIRTIES = '30s',
+  FORTIES = '40s',
+  FIFTIES_PLUS = '50s+',
+}
+
 @Entity('profiles')
 export class Profile {
   @PrimaryColumn('uuid')
@@ -29,6 +45,29 @@ export class Profile {
 
   @Column({ type: 'text', nullable: true })
   bio: string;
+
+  // Skin profile fields
+  @Column({ name: 'skin_type', type: 'enum', enum: SkinType, nullable: true })
+  skinType: SkinType | null;
+
+  @Column({ name: 'skin_concerns', type: 'simple-array', nullable: true })
+  skinConcerns: string[];
+
+  @Column({ name: 'skin_sensitivities', type: 'simple-array', nullable: true })
+  skinSensitivities: string[];
+
+  @Column({ name: 'age_range', type: 'enum', enum: AgeRange, nullable: true })
+  ageRange: AgeRange | null;
+
+  @Column({ name: 'skin_quiz_completed_at', type: 'datetime', nullable: true })
+  skinQuizCompletedAt: Date | null;
+
+  // Points / rewards
+  @Column({ default: 0 })
+  points: number;
+
+  @Column({ name: 'points_earned_total', default: 0 })
+  pointsEarnedTotal: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
