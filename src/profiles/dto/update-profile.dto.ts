@@ -1,5 +1,18 @@
-import { IsOptional, IsString, IsEnum, IsArray, ArrayMaxSize } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsArray, ArrayMaxSize, IsObject } from 'class-validator';
 import { SkinType, AgeRange } from '../entities/profile.entity';
+
+interface UpdateRoutineSlotDto {
+  id: string;
+  step: string;
+  productId: string;
+  productName: string;
+  notes: string;
+}
+
+interface UpdateRoutineDataDto {
+  morning: UpdateRoutineSlotDto[];
+  night: UpdateRoutineSlotDto[];
+}
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -37,4 +50,8 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsEnum(AgeRange)
   ageRange?: AgeRange;
+
+  @IsOptional()
+  @IsObject()
+  routineData?: UpdateRoutineDataDto;
 }

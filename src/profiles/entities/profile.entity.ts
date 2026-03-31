@@ -25,6 +25,19 @@ export enum AgeRange {
   FIFTIES_PLUS = '50s+',
 }
 
+export interface ProfileRoutineSlot {
+  id: string;
+  step: string;
+  productId: string;
+  productName: string;
+  notes: string;
+}
+
+export interface ProfileRoutineData {
+  morning: ProfileRoutineSlot[];
+  night: ProfileRoutineSlot[];
+}
+
 @Entity('profiles')
 export class Profile {
   @PrimaryColumn('uuid')
@@ -61,6 +74,9 @@ export class Profile {
 
   @Column({ name: 'skin_quiz_completed_at', type: 'datetime', nullable: true })
   skinQuizCompletedAt: Date | null;
+
+  @Column({ name: 'routine_data', type: 'simple-json', nullable: true })
+  routineData: ProfileRoutineData | null;
 
   // Points / rewards
   @Column({ default: 0 })
