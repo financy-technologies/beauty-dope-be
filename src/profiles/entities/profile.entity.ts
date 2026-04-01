@@ -17,6 +17,38 @@ export enum SkinType {
   SENSITIVE = 'sensitive',
 }
 
+export type QuizSectionId = 'biology' | 'skin' | 'hair' | 'makeup';
+
+export interface SkinStoryInsights {
+  skinType: string;
+  isSensitive: boolean;
+  sensitivityLevel: string;
+  primaryConcerns: string[];
+  acneRisk: string;
+  pigmentationLevel: string;
+  routineMaturity: string;
+  skincareMonthlyBudget: string;
+  routineComplexity: string;
+  barrierHealth: string;
+  ingredientsToAvoid: string[];
+  ingredientsToSeek: string[];
+  stressLevel: string;
+  sleepQuality: string;
+  dietQuality: string;
+  internalInflammation: string;
+  hairType: string;
+  curlPattern: string | null;
+  scalpType: string;
+  porosity: string;
+  damageLevel: string;
+  primaryHairConcerns: string[];
+  haircareMonthlyBudget: string;
+  undertone: string;
+  coveragePreference: string;
+  makeupMonthlyBudget: string;
+  makeupFrequency: string;
+}
+
 export enum AgeRange {
   UNDER_20 = 'under-20',
   TWENTIES = '20s',
@@ -77,6 +109,30 @@ export class Profile {
 
   @Column({ name: 'routine_data', type: 'simple-json', nullable: true })
   routineData: ProfileRoutineData | null;
+
+  // Skin Story Quiz — raw answers per section
+  @Column({ name: 'biology_answers', type: 'simple-json', nullable: true })
+  biologyAnswers: Record<string, string | string[]> | null;
+
+  @Column({ name: 'skin_answers', type: 'simple-json', nullable: true })
+  skinAnswers: Record<string, string | string[]> | null;
+
+  @Column({ name: 'hair_answers', type: 'simple-json', nullable: true })
+  hairAnswers: Record<string, string | string[]> | null;
+
+  @Column({ name: 'makeup_answers', type: 'simple-json', nullable: true })
+  makeupAnswers: Record<string, string | string[]> | null;
+
+  // Computed insights from all four sections
+  @Column({ name: 'skin_story_insights', type: 'simple-json', nullable: true })
+  skinStoryInsights: SkinStoryInsights | null;
+
+  // Comma-separated list of completed sections e.g. "biology,skin"
+  @Column({ name: 'skin_story_sections_done', type: 'simple-array', nullable: true })
+  skinStorySectionsDone: QuizSectionId[];
+
+  @Column({ name: 'skin_story_completed_at', type: 'datetime', nullable: true })
+  skinStoryCompletedAt: Date | null;
 
   // Points / rewards
   @Column({ default: 0 })

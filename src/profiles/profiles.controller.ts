@@ -11,6 +11,7 @@ import {
 import { IsEnum, IsOptional, IsArray, IsString } from 'class-validator';
 import { ProfilesService } from './profiles.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { SaveSkinStorySectionDto } from './dto/save-skin-story.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SkinType, AgeRange } from './entities/profile.entity';
 
@@ -57,5 +58,19 @@ export class ProfilesController {
       dto.skinSensitivities,
       dto.ageRange,
     );
+  }
+
+  /** Save one section of the Skin Story deep quiz */
+  @UseGuards(JwtAuthGuard)
+  @Post('me/skin-story')
+  saveSkinStorySection(@Req() req, @Body() dto: SaveSkinStorySectionDto) {
+    return this.profilesService.saveSkinStorySection(req.user.id, dto);
+  }
+
+  /** Get saved Skin Story progress for the logged-in user */
+  @UseGuards(JwtAuthGuard)
+  @Get('me/skin-story')
+  getSkinStory(@Req() req) {
+    return this.profilesService.getSkinStory(req.user.id);
   }
 }
