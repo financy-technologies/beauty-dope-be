@@ -5,6 +5,7 @@ import {
   Patch,
   Delete,
   Param,
+  Query,
   Body,
   UseGuards,
   HttpCode,
@@ -39,7 +40,10 @@ export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
   @Get()
-  findAll() {
+  findAll(@Query('q') q?: string, @Query('limit') limit?: string) {
+    if (q && q.trim().length >= 2) {
+      return this.productsService.search(q, limit ? parseInt(limit, 10) : 8);
+    }
     return this.productsService.findAll();
   }
 

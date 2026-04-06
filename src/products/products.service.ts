@@ -18,6 +18,17 @@ export class ProductsService {
     return this.productsRepo.find({ order: { createdAt: 'DESC' } });
   }
 
+  async search(q: string, limit = 8): Promise<Product[]> {
+    if (!q || q.trim().length < 2) return [];
+    return this.productsRepo
+      .createQueryBuilder('product')
+      .where('product.name LIKE :q OR product.brand LIKE :q', { q: `%${q.trim()}%` })
+      .orderBy('product.brand', 'ASC')
+      .addOrderBy('product.name', 'ASC')
+      .limit(limit)
+      .getMany();
+  }
+
   async findOne(id: string) {
     const product = await this.productsRepo.findOne({ where: { id } });
     if (!product) throw new NotFoundException(`Product ${id} not found`);
