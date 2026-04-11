@@ -44,12 +44,21 @@ const NYKAA_DIRECT_IDS: Record<string, { id: number; referer: string }> = {
     referer: 'https://www.nykaa.com/skin/shop-by-concern/wrinkles-fine-lines/c/25763',
   },
   'skin/moisturiser': {
-    id:      8395,
-    referer: 'https://www.nykaa.com/skin/moisturizers/night-cream/c/8395',
+    id:      8394,
+    referer: 'https://www.nykaa.com/skin/moisturizers/face-moisturizer-day-cream/c/8394',
   },
-  // Add more skin subcategory IDs here as you discover them via DevTools:
-  // 'skin/serum':    { id: XXXX, referer: 'https://...' },
-  // 'skin/cleanser': { id: XXXX, referer: 'https://...' },
+  'skin/cleanser': {
+    id:      8380,
+    referer: 'https://www.nykaa.com/skin/cleansers/cleanser/c/8380',
+  },
+  'skin/sunscreen': {
+    id:      8429,
+    referer: 'https://www.nykaa.com/skin/sun-care/face-sunscreen/c/8429',
+  },
+  'skin/serum': {
+    id:      8397,
+    referer: 'https://www.nykaa.com/skin/serums/serums-essence/c/8397',
+  },
 };
 
 // Map Nykaa l3 / l2 category names → our subcategory keys.
@@ -79,6 +88,9 @@ const NYKAA_CAT_NAME_MAP: Record<string, string> = {
   'eye cream':              'eye-cream',
   'eye care':               'eye-cream',
   'sunscreen':              'sunscreen',
+  'sunscreens':             'sunscreen',
+  'face sunscreen':         'sunscreen',
+  'face sunscreens':        'sunscreen',
   'spf':                    'sunscreen',
   'face masks':             'mask',
   'sheet masks':            'mask',
@@ -240,18 +252,52 @@ export class NykaaScraper extends BaseScraper {
     return this.fetchPages(l1Id, category, subcategory, referer, false);
   }
 
+  /**
+   * Scrape a specific Nykaa category by its direct numeric ID, across all pages.
+   *
+   * Designed for standalone bulk-scrape scripts. Each page's products are
+   * emitted to `onBatch` immediately after being fetched (before the next page
+   * starts), so callers can persist to DB incrementally rather than waiting
+   * for all pages to finish.
+   *
+   * @param categoryId  Nykaa numeric category ID (e.g. 8380 for cleanser)
+   * @param category    Our canonical top-level category (e.g. 'skin')
+   * @param subcategory Our canonical subcategory (e.g. 'cleanser')
+   * @param referer     Category page URL used as the HTTP Referer header
+   * @param maxPages    Maximum pages to fetch (set to the known total for the URL)
+   * @param onBatch     Optional async callback invoked after each page completes
+   */
+  async scrapeDirectCategory(
+    categoryId: number,
+    category: string,
+    subcategory: string,
+    referer: string,
+    maxPages: number,
+    onBatch?: (batch: ScrapedProduct[]) => Promise<void>,
+  ): Promise<ScrapedProduct[]> {
+    if (!this.cookie) {
+      this.logger.warn(
+        'NYKAA_COOKIE is not set — Akamai will block requests. ' +
+        'See the comment at the top of nykaa.scraper.ts for setup instructions.',
+      );
+    }
+    return this.fetchPages(categoryId, category, subcategory, referer, true, maxPages, onBatch);
+  }
+
   private async fetchPages(
     categoryId: number,
     category: string,
     subcategory: string,
     referer: string,
     isDirect: boolean,
+    maxPages = MAX_PAGES,
+    onBatch?: (batch: ScrapedProduct[]) => Promise<void>,
   ): Promise<ScrapedProduct[]> {
     const xhrHeaders  = this.buildXhrHeaders(referer);
     const htmlHeaders = this.buildHtmlHeaders(referer);
     const products: ScrapedProduct[] = [];
 
-    for (let page = 1; page <= MAX_PAGES; page++) {
+    for (let page = 1; page <= maxPages; page++) {
       let data: any;
       try {
         data = await this.fetch(LIST_URL, {
@@ -279,6 +325,9 @@ export class NykaaScraper extends BaseScraper {
       const items: any[] = data?.response?.products ?? [];
       if (!items.length) break;
 
+      // Collect products for this page before flushing via onBatch
+      const pageBatch: ScrapedProduct[] = [];
+
       for (const item of items) {
         const productId = item.id ?? item.productId;
         if (!productId) continue;
@@ -298,7 +347,7 @@ export class NykaaScraper extends BaseScraper {
         // Fetch ingredients from the product HTML page (__PRELOADED_STATE__)
         const ingredients = await this.fetchIngredientsFromPage(sourceUrl, htmlHeaders);
 
-        products.push({
+        pageBatch.push({
           name:        this.stripHtml(item.name ?? item.product_title ?? ''),
           brand:       this.stripHtml(item.brand_name ?? ''),
           price:       this.parsePrice(item.final_price ?? item.price),
@@ -317,7 +366,14 @@ export class NykaaScraper extends BaseScraper {
           scrapedAt:   new Date(),
         });
 
-        await this.delay(800); // polite gap between page fetches
+        await this.delay(800); // polite gap between product fetches
+      }
+
+      products.push(...pageBatch);
+
+      // Flush this page to caller (e.g. for DB persistence) before fetching the next
+      if (onBatch && pageBatch.length) {
+        await onBatch(pageBatch);
       }
 
       this.logger.debug(
