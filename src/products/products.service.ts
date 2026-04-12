@@ -125,8 +125,12 @@ export class ProductsService {
     private ingredientParser: IngredientParserService,
   ) {}
 
-  findAll() {
-    return this.productsRepo.find({ order: { createdAt: 'DESC' } });
+  findAll(limit = 20, offset = 0) {
+    return this.productsRepo.find({
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: offset,
+    });
   }
 
   async search(q: string, limit = 8): Promise<Product[]> {

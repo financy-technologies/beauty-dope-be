@@ -40,11 +40,17 @@ export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
   @Get()
-  findAll(@Query('q') q?: string, @Query('limit') limit?: string) {
+  findAll(
+    @Query('q')      q?: string,
+    @Query('limit')  limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const parsedLimit  = limit  ? parseInt(limit,  10) : 20;
+    const parsedOffset = offset ? parseInt(offset, 10) : 0;
     if (q && q.trim().length >= 2) {
-      return this.productsService.search(q, limit ? parseInt(limit, 10) : 8);
+      return this.productsService.search(q, parsedLimit);
     }
-    return this.productsService.findAll();
+    return this.productsService.findAll(parsedLimit, parsedOffset);
   }
 
   @Get(':id/detail')

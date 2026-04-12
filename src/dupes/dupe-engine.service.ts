@@ -45,7 +45,7 @@ const SCORE_VERSION = '3.0';
  * ── Thresholds ────────────────────────────────────────────────────────────────
  *   exact-match   score >= 0.82   (identical efficacy profile)
  *   close-dupe    score >= 0.67   (strong functional overlap, minor differences)
- *   inspired-by   score >= 0.52   (same category + mechanism, some gaps)
+ *   inspired-by   score >= 0.70   (minimum bar — must clear DUPE_THRESHOLD)
  *
  * ── Price gates ───────────────────────────────────────────────────────────────
  *   Minimum savings:  20%  (dupe must be at least 20% cheaper)
@@ -64,7 +64,7 @@ const WEIGHTS = {
 const MIN_TOKENS       = 8;
 const MIN_SAVINGS_PCT  = 20;
 const MAX_PRICE_RATIO  = 8;
-const DUPE_THRESHOLD   = 0.52;
+const DUPE_THRESHOLD   = 0.70;   // raised from 0.52 — only strong matches qualify
 const BATCH_SAVE_SIZE  = 50;
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
