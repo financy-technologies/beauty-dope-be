@@ -5,6 +5,7 @@ import { Product } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { IngredientParserService } from '../ingredients/ingredient-parser.service';
+import { IngredientsService } from '../ingredients/ingredients.service';
 import { Dupe } from '../dupes/entities/dupe.entity';
 import { Review } from '../reviews/entities/review.entity';
 
@@ -123,6 +124,7 @@ export class ProductsService {
     @InjectRepository(Review)
     private reviewsRepo: Repository<Review>,
     private ingredientParser: IngredientParserService,
+    private ingredientsService: IngredientsService,
   ) {}
 
   async getTopBrands(limit = 20): Promise<string[]> {
@@ -173,9 +175,35 @@ export class ProductsService {
 
   async getProductDetail(id: string) {
     const product = await this.findOne(id);
-    const parsedIngredients = product.ingredients
+    const rawTokens = product.ingredients
       ? await this.ingredientParser.parseIngredientList(product.ingredients)
       : [];
+
+    // Batch-enrich tokens with ingredient DB metadata (category, effects, etc.)
+    const canonicalNames = rawTokens
+      .map((t) => t.canonicalName)
+      .filter((n): n is string => !!n);
+    const enrichedMap = new Map(
+      (await this.ingredientsService.enrichTokensWithIngredientData(canonicalNames))
+        .map((e) => [e.canonicalName, e]),
+    );
+
+    // Normalise tokens: rename cleanName → name so the frontend interface matches
+    const parsedIngredients = rawTokens.map((token) => {
+      const enriched = token.canonicalName ? enrichedMap.get(token.canonicalName) : undefined;
+      return {
+        name: token.cleanName,
+        canonicalName: token.canonicalName ?? undefined,
+        category: enriched?.category ?? undefined,
+        effects: enriched?.effects ?? [],
+        comedogenicity: enriched?.comedogenicity ?? undefined,
+        fungalAcneSafe: !enriched?.warnings?.includes('Not safe for fungal acne'),
+        pregnancySafe: !enriched?.warnings?.includes('Not recommended during pregnancy'),
+        skinTypeScores: enriched?.skinTypeScores ?? undefined,
+        concentrationTier: token.concentrationTier,
+        isUnknown: token.isUnknown,
+      };
+    });
 
     // Fetch dupes for this product as the original
     const dupes = await this.dupesRepo.find({
