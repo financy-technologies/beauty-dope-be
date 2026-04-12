@@ -53,6 +53,11 @@ export class ProductsController {
     return this.productsService.findAll(parsedLimit, parsedOffset);
   }
 
+  @Get('brands')
+  getTopBrands(@Query('limit') limit?: string) {
+    return this.productsService.getTopBrands(limit ? parseInt(limit, 10) : 20);
+  }
+
   @Get(':id/detail')
   getDetail(@Param('id') id: string) {
     return this.productsService.getProductDetail(id);

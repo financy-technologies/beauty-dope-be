@@ -125,6 +125,19 @@ export class ProductsService {
     private ingredientParser: IngredientParserService,
   ) {}
 
+  async getTopBrands(limit = 20): Promise<string[]> {
+    const rows = await this.productsRepo
+      .createQueryBuilder('product')
+      .select('product.brand', 'brand')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('product.brand IS NOT NULL AND product.brand != :empty', { empty: '' })
+      .groupBy('product.brand')
+      .orderBy('cnt', 'DESC')
+      .limit(limit)
+      .getRawMany();
+    return rows.map((r) => r.brand as string);
+  }
+
   findAll(limit = 20, offset = 0) {
     return this.productsRepo.find({
       order: { createdAt: 'DESC' },
