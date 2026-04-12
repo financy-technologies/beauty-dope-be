@@ -47,6 +47,11 @@ export class ProductsController {
     return this.productsService.findAll();
   }
 
+  @Get(':id/detail')
+  getDetail(@Param('id') id: string) {
+    return this.productsService.getProductDetail(id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.getWithParsedIngredients(id);
