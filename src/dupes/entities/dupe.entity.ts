@@ -81,6 +81,24 @@ export class Dupe {
   @Column('simple-json', { name: 'shared_actives', nullable: true })
   sharedActives: string[];
 
+  // ── v3 diagnostic columns ────────────────────────────────────────────────
+
+  /** Mechanism-of-action similarity sub-score (0.000–1.000) */
+  @Column('decimal', { name: 'mechanism_score', precision: 5, scale: 3, nullable: true })
+  mechanismScore: number;
+
+  /** Percentage of original's key actives present in the dupe (0–100) */
+  @Column({ name: 'active_overlap_pct', type: 'int', nullable: true })
+  activeOverlapPct: number;
+
+  /** Key actives from the original product that are absent in the dupe */
+  @Column('simple-json', { name: 'missing_actives', nullable: true })
+  missingActives: string[];
+
+  /** Inferred primary skin concern of the original product */
+  @Column({ name: 'primary_concern', nullable: true, length: 32 })
+  primaryConcern: string;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

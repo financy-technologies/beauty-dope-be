@@ -19,6 +19,7 @@
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/seed.ts",
     "scrape:nykaa": "ts-node -r tsconfig-paths/register src/database/seeds/scrape-nykaa.ts",
     "scrape:nykaa:bulk": "ts-node -r tsconfig-paths/register src/database/seeds/scrape-nykaa-bulk.ts",
+    "run:dupes": "ts-node -r tsconfig-paths/register src/database/seeds/run-dupe-detection.ts",
     "test:scrapers": "ts-node -r tsconfig-paths/register src/scraping/test-scrapers.ts",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
