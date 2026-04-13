@@ -20,8 +20,8 @@ export class AuthController {
 
   @Post('google')
   @HttpCode(200)
-  googleLogin(@Body('idToken') idToken: string) {
-    return this.authService.googleLogin(idToken);
+  googleLogin(@Body('credential') credential: string) {
+    return this.authService.googleLogin(credential);
   }
 
   @UseGuards(JwtAuthGuard)
