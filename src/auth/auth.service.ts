@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -37,14 +38,12 @@ export class AuthService {
     });
     await this.usersRepo.save(user);
 
-    // Auto-create profile
     const profile = this.profilesRepo.create({
       id: user.id,
       displayName: dto.displayName || dto.email,
     });
     await this.profilesRepo.save(profile);
 
-    // Award welcome points
     await this.rewardsService.earnPoints(
       user.id,
       50,
@@ -61,6 +60,63 @@ export class AuthService {
 
     const valid = await bcrypt.compare(dto.password, user.password);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
+
+    return this.issueToken(user);
+  }
+
+  // credential = Google OAuth access token from @react-oauth/google
+  async googleLogin(credential: string) {
+    // Fetch user info from Google using the access token
+    let googleUser: { sub: string; email: string; name?: string; picture?: string };
+    try {
+      const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${credential}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch Google user info');
+      googleUser = await res.json();
+    } catch {
+      throw new BadRequestException('Invalid Google credential');
+    }
+
+    const { sub: googleId, email, name, picture } = googleUser;
+    if (!email) throw new BadRequestException('Google account has no email');
+
+    // Find by googleId first, then fall back to email (to link existing accounts)
+    let user = await this.usersRepo.findOne({ where: { googleId } });
+    if (!user) {
+      user = await this.usersRepo.findOne({ where: { email } });
+    }
+
+    if (user) {
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.avatarUrl = picture ?? user.avatarUrl;
+        await this.usersRepo.save(user);
+      }
+    } else {
+      user = this.usersRepo.create({
+        email,
+        googleId,
+        displayName: name ?? email.split('@')[0],
+        avatarUrl: picture,
+        password: null,
+      });
+      await this.usersRepo.save(user);
+
+      const profile = this.profilesRepo.create({
+        id: user.id,
+        displayName: user.displayName,
+        avatarUrl: picture,
+      });
+      await this.profilesRepo.save(profile);
+
+      await this.rewardsService.earnPoints(
+        user.id,
+        50,
+        TransactionType.SIGNUP,
+        'Welcome to Skinevora! 🎉',
+      );
+    }
 
     return this.issueToken(user);
   }
