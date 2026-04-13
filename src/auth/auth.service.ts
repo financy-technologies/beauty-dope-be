@@ -64,16 +64,30 @@ export class AuthService {
     return this.issueToken(user);
   }
 
-  // credential = Google OAuth access token from @react-oauth/google
+  // credential = Google OAuth access token OR One Tap ID token
   async googleLogin(credential: string) {
-    // Fetch user info from Google using the access token
     let googleUser: { sub: string; email: string; name?: string; picture?: string };
+
+    // One Tap returns a JWT (3 dot-separated parts); popup returns an access token
+    const isIdToken = credential.split('.').length === 3;
+
     try {
-      const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${credential}` },
-      });
-      if (!res.ok) throw new Error('Failed to fetch Google user info');
-      googleUser = await res.json();
+      if (isIdToken) {
+        // Verify ID token via Google's tokeninfo endpoint
+        const res = await fetch(
+          `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`,
+        );
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        googleUser = { sub: data.sub, email: data.email, name: data.name, picture: data.picture };
+      } else {
+        // Exchange access token for user info
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${credential}` },
+        });
+        if (!res.ok) throw new Error();
+        googleUser = await res.json();
+      }
     } catch {
       throw new BadRequestException('Invalid Google credential');
     }
