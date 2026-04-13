@@ -140,19 +140,38 @@ export class ProductsService {
     return rows.map((r) => r.brand as string);
   }
 
-  findAll(limit = 20, offset = 0) {
-    return this.productsRepo.find({
-      order: { createdAt: 'DESC' },
-      take: limit,
-      skip: offset,
-    });
+  findAll(limit = 20, offset = 0, category?: string, sort?: string) {
+    const qb = this.productsRepo.createQueryBuilder('product');
+
+    if (category) {
+      qb.andWhere('LOWER(product.category) = LOWER(:category)', { category });
+    }
+
+    switch (sort) {
+      case 'trending':
+        qb.orderBy('product.createdAt', 'DESC'); break;
+      case 'price_asc':
+        qb.orderBy('product.price', 'ASC'); break;
+      case 'price_desc':
+        qb.orderBy('product.price', 'DESC'); break;
+      default:
+        qb.orderBy('product.createdAt', 'DESC');
+    }
+
+    return qb.take(limit).skip(offset).getMany();
   }
 
-  async search(q: string, limit = 8): Promise<Product[]> {
+  async search(q: string, limit = 8, category?: string): Promise<Product[]> {
     if (!q || q.trim().length < 2) return [];
-    return this.productsRepo
+    const qb = this.productsRepo
       .createQueryBuilder('product')
-      .where('product.name LIKE :q OR product.brand LIKE :q', { q: `%${q.trim()}%` })
+      .where('product.name LIKE :q OR product.brand LIKE :q', { q: `%${q.trim()}%` });
+
+    if (category) {
+      qb.andWhere('LOWER(product.category) = LOWER(:category)', { category });
+    }
+
+    return qb
       .orderBy('product.brand', 'ASC')
       .addOrderBy('product.name', 'ASC')
       .limit(limit)

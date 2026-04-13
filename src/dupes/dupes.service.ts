@@ -91,12 +91,16 @@ export class DupesService {
     qb.where('1=1');
 
     if (category) {
-      qb.andWhere('dupe.category = :category', { category });
+      // Match against dupe.category OR the original product's category (case-insensitive)
+      qb.andWhere(
+        '(LOWER(dupe.category) = LOWER(:category) OR LOWER(original.category) = LOWER(:category))',
+        { category },
+      );
     }
 
     if (subcategory) {
       qb.andWhere(
-        '(original.subcategory = :subcategory OR dupeProduct.subcategory = :subcategory)',
+        '(LOWER(original.subcategory) = LOWER(:subcategory) OR LOWER(dupeProduct.subcategory) = LOWER(:subcategory))',
         { subcategory },
       );
     }
