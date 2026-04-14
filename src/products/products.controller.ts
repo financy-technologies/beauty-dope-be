@@ -44,15 +44,16 @@ export class ProductsController {
     @Query('q')          q?: string,
     @Query('limit')      limit?: string,
     @Query('offset')     offset?: string,
-    @Query('category')   category?: string,
-    @Query('sort')       sort?: string,
+    @Query('category')    category?: string,
+    @Query('subcategory') subcategory?: string,
+    @Query('sort')        sort?: string,
   ) {
     const parsedLimit  = limit  ? parseInt(limit,  10) : 20;
     const parsedOffset = offset ? parseInt(offset, 10) : 0;
     if (q && q.trim().length >= 2) {
-      return this.productsService.search(q, parsedLimit, category);
+      return this.productsService.search(q, parsedLimit, category, subcategory);
     }
-    return this.productsService.findAll(parsedLimit, parsedOffset, category, sort);
+    return this.productsService.findAll(parsedLimit, parsedOffset, category, sort, subcategory);
   }
 
   @Get('brands')

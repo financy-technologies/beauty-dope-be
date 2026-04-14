@@ -140,12 +140,11 @@ export class ProductsService {
     return rows.map((r) => r.brand as string);
   }
 
-  findAll(limit = 20, offset = 0, category?: string, sort?: string) {
+  findAll(limit = 20, offset = 0, category?: string, sort?: string, subcategory?: string) {
     const qb = this.productsRepo.createQueryBuilder('product');
 
-    if (category) {
-      qb.andWhere('LOWER(product.category) = LOWER(:category)', { category });
-    }
+    if (category) qb.andWhere('product.category = :category', { category });
+    if (subcategory) qb.andWhere('product.subcategory = :subcategory', { subcategory });
 
     switch (sort) {
       case 'trending':
@@ -161,15 +160,14 @@ export class ProductsService {
     return qb.take(limit).skip(offset).getMany();
   }
 
-  async search(q: string, limit = 8, category?: string): Promise<Product[]> {
+  async search(q: string, limit = 8, category?: string, subcategory?: string): Promise<Product[]> {
     if (!q || q.trim().length < 2) return [];
     const qb = this.productsRepo
       .createQueryBuilder('product')
       .where('product.name LIKE :q OR product.brand LIKE :q', { q: `%${q.trim()}%` });
 
-    if (category) {
-      qb.andWhere('LOWER(product.category) = LOWER(:category)', { category });
-    }
+    if (category) qb.andWhere('product.category = :category', { category });
+    if (subcategory) qb.andWhere('product.subcategory = :subcategory', { subcategory });
 
     return qb
       .orderBy('product.brand', 'ASC')
