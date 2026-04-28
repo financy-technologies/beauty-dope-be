@@ -12,6 +12,7 @@ import { NykaaScraper } from './scrapers/nykaa.scraper';
 import { SephoraScraper } from './scrapers/sephora.scraper';
 import { UltaScraper } from './scrapers/ulta.scraper';
 import { PurplleScraper } from './scrapers/purplle.scraper';
+import { InnovistScraper } from './scrapers/innovist.scraper';
 import { ScrapedProduct, ScrapeResult } from './scrapers/types';
 
 // INR / USD spot rate — update or inject from a live FX source
@@ -22,10 +23,11 @@ export class ScrapingService {
   private readonly logger = new Logger(ScrapingService.name);
 
   private readonly allScrapers = {
-    nykaa: this.nykaaScraper,
-    purplle: this.purplleScraper,
-    sephora: this.sephoraScraper,
-    ulta: this.ultaScraper,
+    nykaa:    this.nykaaScraper,
+    purplle:  this.purplleScraper,
+    sephora:  this.sephoraScraper,
+    ulta:     this.ultaScraper,
+    innovist: this.innovistScraper,
   };
 
   private schedule = {
@@ -46,6 +48,7 @@ export class ScrapingService {
     private readonly purplleScraper: PurplleScraper,
     private readonly sephoraScraper: SephoraScraper,
     private readonly ultaScraper: UltaScraper,
+    private readonly innovistScraper: InnovistScraper,
   ) {}
 
   // ─── Scheduler ────────────────────────────────────────────────────────────

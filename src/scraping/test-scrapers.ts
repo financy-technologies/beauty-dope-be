@@ -25,6 +25,7 @@ import { NykaaScraper } from './scrapers/nykaa.scraper';
 import { PurplleScraper } from './scrapers/purplle.scraper';
 import { SephoraScraper } from './scrapers/sephora.scraper';
 import { UltaScraper } from './scrapers/ulta.scraper';
+import { InnovistScraper } from './scrapers/innovist.scraper';
 import { IngredientParserService } from './ingredient-parser.service';
 import { ScrapedProduct } from './scrapers/types';
 import { BaseScraper } from './scrapers/base.scraper';
@@ -56,13 +57,19 @@ const PROBE_URLS: Record<string, { url: string; params?: Record<string, any> }> 
     url: 'https://www.ulta.com/api/catalog/search',
     params: { Nrpp: 5, No: 0, N: 'moisturizers', sort: 'sort.toprated', format: 'json' },
   },
+  innovist: {
+    // Shopify public JSON API — no cookie or auth required
+    url: 'https://innovist.com/collections/face-serum/products.json',
+    params: { limit: 5, page: 1 },
+  },
 };
 
 const SCRAPERS: Record<string, BaseScraper> = {
-  nykaa:   new NykaaScraper(),
-  purplle: new PurplleScraper(),
-  sephora: new SephoraScraper(),
-  ulta:    new UltaScraper(),
+  nykaa:    new NykaaScraper(),
+  purplle:  new PurplleScraper(),
+  sephora:  new SephoraScraper(),
+  ulta:     new UltaScraper(),
+  innovist: new InnovistScraper(),
 };
 
 const parser = new IngredientParserService();

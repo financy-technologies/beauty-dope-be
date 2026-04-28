@@ -9,6 +9,7 @@ import { NykaaScraper } from './scrapers/nykaa.scraper';
 import { SephoraScraper } from './scrapers/sephora.scraper';
 import { UltaScraper } from './scrapers/ulta.scraper';
 import { PurplleScraper } from './scrapers/purplle.scraper';
+import { InnovistScraper } from './scrapers/innovist.scraper';
 import { DupesModule } from '../dupes/dupes.module';
 
 @Module({
@@ -24,6 +25,7 @@ import { DupesModule } from '../dupes/dupes.module';
     SephoraScraper,
     UltaScraper,
     PurplleScraper,
+    InnovistScraper,
   ],
   exports: [ScrapingService],
 })
