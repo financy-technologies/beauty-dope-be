@@ -13,6 +13,7 @@ import { ScrapingModule } from './scraping/scraping.module';
 import { AdminModule } from './admin/admin.module';
 import { IngredientsModule } from './ingredients/ingredients.module';
 import { RewardsModule } from './rewards/rewards.module';
+import { McpModule } from './mcp/mcp.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { RewardsModule } from './rewards/rewards.module';
     SearchModule,
     ScrapingModule,
     AdminModule,
+    McpModule,
   ],
 })
 export class AppModule {}
