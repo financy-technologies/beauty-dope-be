@@ -275,6 +275,19 @@ export class IngredientsService {
     return result;
   }
 
+  async getComedogenicityStats(tokens: string[]): Promise<{ count: number; max: number }> {
+    if (!tokens?.length) return { count: 0, max: 0 };
+    const ingredients = await this.ingredientRepository.find({
+      where: tokens.map((t) => ({ canonicalName: t.toLowerCase() })),
+    });
+    let count = 0, max = 0;
+    for (const ing of ingredients) {
+      if (ing.comedogenicity > 0) count++;
+      if (ing.comedogenicity > max) max = ing.comedogenicity;
+    }
+    return { count, max };
+  }
+
   /**
    * Compare two ingredient token lists
    */

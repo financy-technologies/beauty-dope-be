@@ -11,11 +11,13 @@ import { UltaScraper } from './scrapers/ulta.scraper';
 import { PurplleScraper } from './scrapers/purplle.scraper';
 import { InnovistScraper } from './scrapers/innovist.scraper';
 import { DupesModule } from '../dupes/dupes.module';
+import { IngredientsModule } from '../ingredients/ingredients.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ScrapeJob, Product]),
     DupesModule,   // re-exports DupeEngineService + its repositories
+    IngredientsModule,
   ],
   controllers: [ScrapingController, ScrapingPreviewController],
   providers: [

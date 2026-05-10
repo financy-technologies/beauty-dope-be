@@ -14,6 +14,7 @@ import { UltaScraper } from './scrapers/ulta.scraper';
 import { PurplleScraper } from './scrapers/purplle.scraper';
 import { InnovistScraper } from './scrapers/innovist.scraper';
 import { ScrapedProduct, ScrapeResult } from './scrapers/types';
+import { IngredientsService } from '../ingredients/ingredients.service';
 
 // INR / USD spot rate — update or inject from a live FX source
 const USD_TO_INR = 83;
@@ -49,6 +50,7 @@ export class ScrapingService {
     private readonly sephoraScraper: SephoraScraper,
     private readonly ultaScraper: UltaScraper,
     private readonly innovistScraper: InnovistScraper,
+    private readonly ingredientsService: IngredientsService,
   ) {}
 
   // ─── Scheduler ────────────────────────────────────────────────────────────
@@ -312,6 +314,10 @@ export class ScrapingService {
     let created = 0, updated = 0;
     for (const p of products) {
       if (!p.externalId) continue;
+
+      const tokens = p.ingredientsTokens?.length ? p.ingredientsTokens : [];
+      const breakdown = await this.buildIngredientBreakdown(tokens);
+
       const existing = await this.productsRepo.findOne({ where: { externalId: p.externalId } });
       if (existing) {
         await this.productsRepo.update(existing.id, {
@@ -319,17 +325,43 @@ export class ScrapingService {
           normalizedPriceInr: p.normalizedPriceInr ?? existing.normalizedPriceInr,
           imageUrl: p.imageUrl ?? existing.imageUrl,
           ingredients: p.ingredients ?? existing.ingredients,
-          ingredientsTokens: p.ingredientsTokens?.length ? p.ingredientsTokens : existing.ingredientsTokens,
+          ingredientsTokens: tokens.length ? tokens : existing.ingredientsTokens,
           quantity: p.quantity ?? existing.quantity,
           scrapedAt: p.scrapedAt ?? existing.scrapedAt,
+          ...(breakdown ? { ingredientBreakdown: breakdown } : {}),
         });
         updated++;
       } else {
-        await this.productsRepo.save(this.productsRepo.create(p));
+        const newProduct = this.productsRepo.create({
+          ...p,
+          ...(breakdown ? { ingredientBreakdown: breakdown } : {}),
+        });
+        await this.productsRepo.save(newProduct);
         created++;
       }
     }
     return { created, updated };
+  }
+
+  private async buildIngredientBreakdown(tokens: string[]) {
+    if (!tokens.length) return null;
+    const [categories, warnings, comedogenicity] = await Promise.all([
+      this.ingredientsService.categorizeIngredients(tokens),
+      this.ingredientsService.identifyWarnings(tokens),
+      this.ingredientsService.getComedogenicityStats(tokens),
+    ]);
+    return {
+      tokenCount: tokens.length,
+      actives: categories.actives,
+      humectants: categories.humectants,
+      emollients: categories.emollients,
+      preservatives: categories.preservatives,
+      chelatingAgents: categories.chelatingAgents,
+      comedogenicCount: comedogenicity.count,
+      maxComedogenicity: comedogenicity.max,
+      fungalAcneSafe: !warnings.fungalAcneUnsafe,
+      pregnancySafe: !warnings.pregnancyUnsafe,
+    };
   }
 
   private async upsertProduct(
