@@ -60,14 +60,28 @@ function computeIrritancyRisk(breakdown: Product['ingredientBreakdown']): 'low' 
   return 'low';
 }
 
-function computeValueScore(product: Product, dupes: Dupe[]): number {
+function computeValueScore(product: Product, dupes: Dupe[], dupesAsDupe: Dupe[] = []): number {
+  // Direction 1: this product IS the dupe (cheap alternative to expensive products) → high value
+  if (dupesAsDupe.length > 0) {
+    const bestSavings = Math.max(...dupesAsDupe.map((d) => d.savingsPercent ?? 0));
+    const bestSimilarity = Math.max(...dupesAsDupe.map((d) => d.similarityScore));
+    let score = 70;
+    if (bestSimilarity >= 85 && bestSavings >= 50) score = 95;
+    else if (bestSimilarity >= 80 && bestSavings >= 40) score = 90;
+    else if (bestSimilarity >= 75 && bestSavings >= 30) score = 85;
+    else if (bestSimilarity >= 70 && bestSavings >= 20) score = 80;
+    // If also has cheaper dupes of its own, temper slightly
+    if (dupes.length > 0) score -= 5;
+    return Math.max(20, Math.min(95, Math.round(score)));
+  }
+
+  // Direction 2: this product is the original (expensive) with cheaper dupes → lower value
   if (!dupes.length) return 70;
 
   const avgSavings = dupes.reduce((sum, d) => sum + (d.savingsPercent ?? 0), 0) / dupes.length;
   const bestSimilarity = Math.max(...dupes.map((d) => d.similarityScore));
   const bestSavings = Math.max(...dupes.map((d) => d.savingsPercent ?? 0));
 
-  // If great dupes exist with big savings, this product's value is lower
   let score = 80;
   if (bestSimilarity >= 85 && bestSavings >= 50) score -= 35;
   else if (bestSimilarity >= 80 && bestSavings >= 40) score -= 28;
@@ -75,7 +89,6 @@ function computeValueScore(product: Product, dupes: Dupe[]): number {
   else if (bestSimilarity >= 70 && bestSavings >= 20) score -= 15;
   else if (bestSimilarity >= 60 && avgSavings >= 10) score -= 8;
 
-  // Fewer dupes = more unique = slightly more value
   if (dupes.length <= 2) score += 5;
 
   return Math.max(20, Math.min(95, Math.round(score)));
@@ -279,13 +292,24 @@ export class ProductsService {
       };
     });
 
-    // Fetch dupes for this product as the original
-    const dupes = await this.dupesRepo.find({
-      where: { originalProduct: { id } },
-      relations: ['dupeProduct'],
-      order: { similarityScore: 'DESC' },
-      take: 10,
-    });
+    // Fetch dupes in both directions:
+    // 1. This product is the original (expensive) → dupes are cheaper alternatives
+    // 2. This product is the dupe (cheap) → originals are pricier equivalents
+    const [dupesAsOriginal, dupesAsDupe] = await Promise.all([
+      this.dupesRepo.find({
+        where: { originalProduct: { id } },
+        relations: ['dupeProduct'],
+        order: { similarityScore: 'DESC' },
+        take: 10,
+      }),
+      this.dupesRepo.find({
+        where: { dupeProduct: { id } },
+        relations: ['originalProduct'],
+        order: { similarityScore: 'DESC' },
+        take: 10,
+      }),
+    ]);
+    const dupes = dupesAsOriginal;
 
     // Aggregate reviews via dupe relationships
     const dupeIds = dupes.map((d) => d.id);
@@ -306,7 +330,7 @@ export class ProductsService {
     const skinevoraScores = {
       efficacy: computeEfficacyScore(breakdown),
       irritancy: computeIrritancyRisk(breakdown),
-      value: computeValueScore(product, dupes),
+      value: computeValueScore(product, dupes, dupesAsDupe),
       clean: computeCleanScore(breakdown, product.ingredients),
     };
 
@@ -370,6 +394,25 @@ export class ProductsService {
           size: d.dupeProduct.size,
           platform: d.dupeProduct.platform,
           ingredientBreakdown: d.dupeProduct.ingredientBreakdown,
+        },
+      })),
+      dupeOf: dupesAsDupe.map((d) => ({
+        id: d.id,
+        similarityScore: d.similarityScore,
+        savingsPercent: d.savingsPercent,
+        dupeLabel: d.dupeLabel ?? null,
+        sharedActives: d.sharedActives ?? [],
+        originalProduct: {
+          id: d.originalProduct.id,
+          name: d.originalProduct.name,
+          brand: d.originalProduct.brand,
+          price: Number(d.originalProduct.price),
+          normalizedPriceInr: Number(d.originalProduct.normalizedPriceInr ?? d.originalProduct.price),
+          currency: d.originalProduct.currency,
+          imageUrl: d.originalProduct.imageUrl,
+          sourceUrl: d.originalProduct.sourceUrl,
+          size: d.originalProduct.size,
+          platform: d.originalProduct.platform,
         },
       })),
       reviews: {
