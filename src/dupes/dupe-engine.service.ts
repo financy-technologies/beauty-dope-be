@@ -166,6 +166,35 @@ export class DupeEngineService {
     return { created, updated };
   }
 
+  async detectDupesForProduct(productId: string): Promise<{ created: number; updated: number }> {
+    const product = await this.productsRepo.findOne({ where: { id: productId } });
+    if (!product || this.ensureTokens(product).length < MIN_TOKENS) {
+      return { created: 0, updated: 0 };
+    }
+
+    const subcategory = (product.subcategory ?? 'unknown').toLowerCase();
+    const peers = await this.productsRepo.find({
+      where: { subcategory: product.subcategory },
+    });
+    const eligible = peers.filter(
+      (p) => p.id !== productId && this.ensureTokens(p).length >= MIN_TOKENS,
+    );
+
+    if (!eligible.length) return { created: 0, updated: 0 };
+
+    const allProducts = [product, ...eligible];
+    const candidates = this.detectInSubcategory(allProducts, subcategory)
+      .filter((c) => c.original.id === productId || c.dupe.id === productId);
+
+    const ranked = this.rankByOriginal(candidates);
+    const { c, u } = await this.upsertCandidates(ranked, subcategory);
+
+    this.logger.log(
+      `Dupe detection for product ${productId}: ${c} created, ${u} updated`,
+    );
+    return { created: c, updated: u };
+  }
+
   async rescoreDupe(dupeId: string): Promise<void> {
     const dupe = await this.dupesRepo.findOne({
       where: { id: dupeId },

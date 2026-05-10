@@ -332,17 +332,25 @@ export class ScrapingService {
           scrapedAt: p.scrapedAt ?? existing.scrapedAt,
           ...(breakdown ? { ingredientBreakdown: breakdown, skinTypeSuitability: breakdown.avgSkinTypeScores } : {}),
         });
+        this.runDupeDetectionInBackground(existing.id);
         updated++;
       } else {
         const newProduct = this.productsRepo.create({
           ...p,
           ...(breakdown ? { ingredientBreakdown: breakdown, skinTypeSuitability: breakdown.avgSkinTypeScores } : {}),
         });
-        await this.productsRepo.save(newProduct);
+        const saved = await this.productsRepo.save(newProduct);
+        this.runDupeDetectionInBackground(saved.id);
         created++;
       }
     }
     return { created, updated };
+  }
+
+  private runDupeDetectionInBackground(productId: string) {
+    this.dupeEngine.detectDupesForProduct(productId).catch((err) => {
+      this.logger.warn(`Background dupe detection failed for ${productId}: ${err.message}`);
+    });
   }
 
   private async buildIngredientBreakdown(ingredientsRaw: string | null, tokens: string[]) {
