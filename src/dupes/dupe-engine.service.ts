@@ -411,8 +411,8 @@ export class DupeEngineService {
   }
 
   private ensureTokens(product: Product): string[] {
-    if (product.ingredientsTokens?.length) return product.ingredientsTokens;
     if (product.ingredients) return this.parser.parse(product.ingredients);
+    if (product.ingredientsTokens?.length) return product.ingredientsTokens;
     return [];
   }
 
