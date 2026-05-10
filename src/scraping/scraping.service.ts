@@ -347,6 +347,37 @@ export class ScrapingService {
     return { created, updated };
   }
 
+  async backfillIngredientTokens(subcategory?: string): Promise<{ processed: number; enriched: number }> {
+    const qb = this.productsRepo.createQueryBuilder('p')
+      .where('p.ingredients IS NOT NULL AND p.ingredients != :empty', { empty: '' });
+    if (subcategory) {
+      qb.andWhere('p.subcategory = :sub', { sub: subcategory });
+    }
+    const products = await qb.getMany();
+
+    let processed = 0, enriched = 0;
+    for (const p of products) {
+      const tokens = this.ingredientParser.parse(p.ingredients);
+      if (tokens.length < 2) continue;
+
+      const breakdown = await this.buildIngredientBreakdown(p.ingredients, tokens);
+
+      await this.productsRepo.update(p.id, {
+        ingredientsTokens: tokens,
+        ...(breakdown ? { ingredientBreakdown: breakdown, skinTypeSuitability: breakdown.avgSkinTypeScores } : {}),
+      });
+      processed++;
+      if (breakdown) enriched++;
+
+      if (processed % 100 === 0) {
+        this.logger.log(`Backfill progress: ${processed}/${products.length}`);
+      }
+    }
+
+    this.logger.log(`Backfill complete: ${processed} processed, ${enriched} enriched out of ${products.length}`);
+    return { processed, enriched };
+  }
+
   private runDupeDetectionInBackground(productId: string) {
     this.dupeEngine.detectDupesForProduct(productId).catch((err) => {
       this.logger.warn(`Background dupe detection failed for ${productId}: ${err.message}`);

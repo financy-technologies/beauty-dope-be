@@ -120,6 +120,11 @@ export class ScrapingPreviewController {
     return this.scrapingService.pushProducts(products ?? []);
   }
 
+  @Post('backfill-tokens')
+  backfillTokens(@Body('subcategory') subcategory?: string) {
+    return this.scrapingService.backfillIngredientTokens(subcategory);
+  }
+
   @Get('test-scraper')
   testScraper(
     @Query('source') source: string,
