@@ -433,4 +433,43 @@ export class IngredientsService {
           : [],
     }));
   }
+
+  async computeWeightedSkinTypeScores(
+    parsed: { canonicalName: string | null; concentrationTier: string }[],
+  ): Promise<{ dry: number; oily: number; sensitive: number; combination: number; normal: number } | null> {
+    const names = parsed.map((t) => t.canonicalName).filter((n): n is string => !!n);
+    if (!names.length) return null;
+
+    const ingredients = await this.ingredientRepository.find({
+      where: names.map((n) => ({ canonicalName: n })),
+    });
+    if (!ingredients.length) return null;
+
+    const ingMap = new Map(ingredients.map((i) => [i.canonicalName, i]));
+    const tierWeight = { major: 3, mid: 2, trace: 1, unknown: 1 };
+    const totals = { dry: 0, oily: 0, sensitive: 0, combination: 0, normal: 0 };
+    let weightSum = 0;
+
+    for (const token of parsed) {
+      if (!token.canonicalName) continue;
+      const ing = ingMap.get(token.canonicalName);
+      if (!ing?.skinTypeScores) continue;
+      const w = tierWeight[token.concentrationTier as keyof typeof tierWeight] ?? 1;
+      totals.dry += ing.skinTypeScores.dry * w;
+      totals.oily += ing.skinTypeScores.oily * w;
+      totals.sensitive += ing.skinTypeScores.sensitive * w;
+      totals.combination += ing.skinTypeScores.combination * w;
+      totals.normal += ing.skinTypeScores.normal * w;
+      weightSum += w;
+    }
+
+    if (weightSum === 0) return null;
+    return {
+      dry: Math.round(totals.dry / weightSum),
+      oily: Math.round(totals.oily / weightSum),
+      sensitive: Math.round(totals.sensitive / weightSum),
+      combination: Math.round(totals.combination / weightSum),
+      normal: Math.round(totals.normal / weightSum),
+    };
+  }
 }

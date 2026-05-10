@@ -64,6 +64,7 @@ export class Product {
   @Column('simple-json', { name: 'ingredient_breakdown', nullable: true })
   ingredientBreakdown?: {
     tokenCount: number;
+    recognizedCount: number;
     actives: string[];
     humectants: string[];
     emollients: string[];
@@ -73,6 +74,11 @@ export class Product {
     maxComedogenicity: number;
     fungalAcneSafe: boolean;
     pregnancySafe: boolean;
+    activesInTopFive: number;
+    avgSkinTypeScores: { dry: number; oily: number; sensitive: number; combination: number; normal: number } | null;
+    hasFragrance: boolean;
+    hasAlcohol: boolean;
+    hasParaben: boolean;
   };
 
   @Column('simple-json', { name: 'skin_type_suitability', nullable: true })

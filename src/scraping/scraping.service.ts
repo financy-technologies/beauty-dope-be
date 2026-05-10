@@ -15,6 +15,7 @@ import { PurplleScraper } from './scrapers/purplle.scraper';
 import { InnovistScraper } from './scrapers/innovist.scraper';
 import { ScrapedProduct, ScrapeResult } from './scrapers/types';
 import { IngredientsService } from '../ingredients/ingredients.service';
+import { IngredientParserService as IngredientResolverService } from '../ingredients/ingredient-parser.service';
 
 // INR / USD spot rate — update or inject from a live FX source
 const USD_TO_INR = 83;
@@ -51,6 +52,7 @@ export class ScrapingService {
     private readonly ultaScraper: UltaScraper,
     private readonly innovistScraper: InnovistScraper,
     private readonly ingredientsService: IngredientsService,
+    private readonly ingredientResolver: IngredientResolverService,
   ) {}
 
   // ─── Scheduler ────────────────────────────────────────────────────────────
@@ -316,7 +318,7 @@ export class ScrapingService {
       if (!p.externalId) continue;
 
       const tokens = p.ingredientsTokens?.length ? p.ingredientsTokens : [];
-      const breakdown = await this.buildIngredientBreakdown(tokens);
+      const breakdown = await this.buildIngredientBreakdown(p.ingredients ?? null, tokens);
 
       const existing = await this.productsRepo.findOne({ where: { externalId: p.externalId } });
       if (existing) {
@@ -328,13 +330,13 @@ export class ScrapingService {
           ingredientsTokens: tokens.length ? tokens : existing.ingredientsTokens,
           quantity: p.quantity ?? existing.quantity,
           scrapedAt: p.scrapedAt ?? existing.scrapedAt,
-          ...(breakdown ? { ingredientBreakdown: breakdown } : {}),
+          ...(breakdown ? { ingredientBreakdown: breakdown, skinTypeSuitability: breakdown.avgSkinTypeScores } : {}),
         });
         updated++;
       } else {
         const newProduct = this.productsRepo.create({
           ...p,
-          ...(breakdown ? { ingredientBreakdown: breakdown } : {}),
+          ...(breakdown ? { ingredientBreakdown: breakdown, skinTypeSuitability: breakdown.avgSkinTypeScores } : {}),
         });
         await this.productsRepo.save(newProduct);
         created++;
@@ -343,15 +345,36 @@ export class ScrapingService {
     return { created, updated };
   }
 
-  private async buildIngredientBreakdown(tokens: string[]) {
-    if (!tokens.length) return null;
+  private async buildIngredientBreakdown(ingredientsRaw: string | null, tokens: string[]) {
+    if (!ingredientsRaw && !tokens.length) return null;
+
+    const parsed = ingredientsRaw
+      ? await this.ingredientResolver.parseIngredientList(ingredientsRaw)
+      : [];
+
+    const recognizedTokens = parsed.filter((t) => !t.isUnknown);
+    const canonicalNames = recognizedTokens
+      .map((t) => t.canonicalName)
+      .filter((n): n is string => !!n);
+
     const [categories, warnings, comedogenicity] = await Promise.all([
-      this.ingredientsService.categorizeIngredients(tokens),
-      this.ingredientsService.identifyWarnings(tokens),
-      this.ingredientsService.getComedogenicityStats(tokens),
+      this.ingredientsService.categorizeIngredients(canonicalNames),
+      this.ingredientsService.identifyWarnings(canonicalNames),
+      this.ingredientsService.getComedogenicityStats(canonicalNames),
     ]);
+
+    const activesInTopFive = parsed
+      .slice(0, 5)
+      .filter((t) => !t.isUnknown && categories.actives.includes(t.canonicalName!))
+      .length;
+
+    const skinScores = await this.ingredientsService.computeWeightedSkinTypeScores(parsed);
+
+    const lower = (ingredientsRaw ?? '').toLowerCase();
+
     return {
-      tokenCount: tokens.length,
+      tokenCount: parsed.length || tokens.length,
+      recognizedCount: recognizedTokens.length,
       actives: categories.actives,
       humectants: categories.humectants,
       emollients: categories.emollients,
@@ -361,6 +384,11 @@ export class ScrapingService {
       maxComedogenicity: comedogenicity.max,
       fungalAcneSafe: !warnings.fungalAcneUnsafe,
       pregnancySafe: !warnings.pregnancyUnsafe,
+      activesInTopFive,
+      avgSkinTypeScores: skinScores,
+      hasFragrance: lower.includes('fragrance') || lower.includes('parfum'),
+      hasAlcohol: lower.includes('alcohol denat') || lower.includes('sd alcohol'),
+      hasParaben: lower.includes('paraben'),
     };
   }
 

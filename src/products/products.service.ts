@@ -13,48 +13,105 @@ import { Review } from '../reviews/entities/review.entity';
 
 function computeEfficacyScore(breakdown: Product['ingredientBreakdown']): number {
   if (!breakdown) return 50;
-  let score = 40;
-  score += Math.min((breakdown.actives?.length ?? 0) * 5, 25);
-  score += Math.min((breakdown.humectants?.length ?? 0) * 3, 12);
-  score += Math.min((breakdown.emollients?.length ?? 0) * 2, 8);
-  if (breakdown.fungalAcneSafe) score += 5;
-  if (breakdown.pregnancySafe) score += 3;
-  score -= Math.min((breakdown.comedogenicCount ?? 0) * 2, 15);
-  return Math.max(20, Math.min(100, Math.round(score)));
+
+  const recognized = breakdown.recognizedCount ?? 0;
+  const total = breakdown.tokenCount ?? 1;
+  const recognitionRatio = recognized / total;
+
+  let score = 25;
+
+  // Actives contribution (0–30): more actives = higher efficacy
+  const actives = breakdown.actives?.length ?? 0;
+  score += Math.min(actives * 7, 30);
+
+  // Actives in top 5 positions = higher concentration = bigger boost (0–15)
+  score += (breakdown.activesInTopFive ?? 0) * 5;
+
+  // Supporting ingredients (0–12)
+  score += Math.min((breakdown.humectants?.length ?? 0) * 3, 9);
+  score += Math.min((breakdown.emollients?.length ?? 0) * 2, 6);
+
+  // Recognition ratio bonus — well-known ingredients are confidence signal (0–10)
+  score += Math.round(recognitionRatio * 10);
+
+  // Safety bonuses (0–5)
+  if (breakdown.fungalAcneSafe) score += 3;
+  if (breakdown.pregnancySafe) score += 2;
+
+  // Penalties
+  score -= Math.min((breakdown.comedogenicCount ?? 0) * 3, 15);
+  if (breakdown.hasFragrance) score -= 3;
+
+  return Math.max(10, Math.min(100, Math.round(score)));
 }
 
 function computeIrritancyRisk(breakdown: Product['ingredientBreakdown']): 'low' | 'medium' | 'high' {
   if (!breakdown) return 'medium';
-  const { maxComedogenicity, comedogenicCount } = breakdown;
-  if ((maxComedogenicity ?? 0) >= 4 || (comedogenicCount ?? 0) >= 3) return 'high';
-  if ((maxComedogenicity ?? 0) >= 2 || (comedogenicCount ?? 0) >= 1) return 'medium';
+
+  let riskScore = 0;
+  riskScore += Math.min((breakdown.maxComedogenicity ?? 0) * 2, 10);
+  riskScore += Math.min((breakdown.comedogenicCount ?? 0) * 1.5, 6);
+  if (breakdown.hasFragrance) riskScore += 3;
+  if (breakdown.hasAlcohol) riskScore += 3;
+  if (!breakdown.fungalAcneSafe) riskScore += 2;
+
+  if (riskScore >= 10) return 'high';
+  if (riskScore >= 4) return 'medium';
   return 'low';
 }
 
 function computeValueScore(product: Product, dupes: Dupe[]): number {
-  if (!dupes.length) return 75;
-  const bestDupe = dupes.reduce((best, d) => d.similarityScore > best.similarityScore ? d : best, dupes[0]);
-  if (bestDupe.similarityScore >= 80 && (bestDupe.savingsPercent ?? 0) >= 40) return 45;
-  if (bestDupe.similarityScore >= 70 && (bestDupe.savingsPercent ?? 0) >= 25) return 58;
-  return 72;
+  if (!dupes.length) return 70;
+
+  const avgSavings = dupes.reduce((sum, d) => sum + (d.savingsPercent ?? 0), 0) / dupes.length;
+  const bestSimilarity = Math.max(...dupes.map((d) => d.similarityScore));
+  const bestSavings = Math.max(...dupes.map((d) => d.savingsPercent ?? 0));
+
+  // If great dupes exist with big savings, this product's value is lower
+  let score = 80;
+  if (bestSimilarity >= 85 && bestSavings >= 50) score -= 35;
+  else if (bestSimilarity >= 80 && bestSavings >= 40) score -= 28;
+  else if (bestSimilarity >= 75 && bestSavings >= 30) score -= 22;
+  else if (bestSimilarity >= 70 && bestSavings >= 20) score -= 15;
+  else if (bestSimilarity >= 60 && avgSavings >= 10) score -= 8;
+
+  // Fewer dupes = more unique = slightly more value
+  if (dupes.length <= 2) score += 5;
+
+  return Math.max(20, Math.min(95, Math.round(score)));
 }
 
 function computeCleanScore(breakdown: Product['ingredientBreakdown'], ingredientsRaw: string | null): number {
-  let score = 100;
+  if (!breakdown && !ingredientsRaw) return 50;
+
+  let score = 85;
+
   if (breakdown) {
-    score -= Math.min((breakdown.preservatives?.length ?? 0) * 5, 20);
-    score -= Math.min((breakdown.comedogenicCount ?? 0) * 3, 15);
-    if (breakdown.fungalAcneSafe) score += 5;
-    if (breakdown.pregnancySafe) score += 5;
+    // Preservative penalty (0–15)
+    score -= Math.min((breakdown.preservatives?.length ?? 0) * 4, 15);
+    // Comedogenic penalty (0–12)
+    score -= Math.min((breakdown.comedogenicCount ?? 0) * 3, 12);
+    // Max comedogenicity penalty
+    if ((breakdown.maxComedogenicity ?? 0) >= 4) score -= 8;
+    else if ((breakdown.maxComedogenicity ?? 0) >= 3) score -= 4;
+    // Safety bonuses
+    if (breakdown.fungalAcneSafe) score += 4;
+    if (breakdown.pregnancySafe) score += 4;
+    // Pre-computed flags from breakdown
+    if (breakdown.hasFragrance) score -= 10;
+    if (breakdown.hasAlcohol) score -= 8;
+    if (breakdown.hasParaben) score -= 8;
   }
+
   if (ingredientsRaw) {
     const lower = ingredientsRaw.toLowerCase();
-    if (lower.includes('fragrance') || lower.includes('parfum')) score -= 10;
-    if (lower.includes('alcohol denat') || lower.includes('sd alcohol')) score -= 8;
     if (lower.includes('formaldehyde')) score -= 20;
-    if (lower.includes('parabens') || lower.includes('paraben')) score -= 10;
     if (lower.includes('mineral oil')) score -= 5;
+    if (lower.includes('peg-')) score -= 3;
+    if (lower.includes('sls') || lower.includes('sodium lauryl sulfate')) score -= 6;
+    if (lower.includes('sodium laureth sulfate') || lower.includes('sles')) score -= 4;
   }
+
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
