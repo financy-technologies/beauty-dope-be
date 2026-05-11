@@ -3,6 +3,7 @@ import { AdminService } from './admin.service';
 import { AdminGuard } from './admin.guard';
 import { IngredientsSeedService } from '../database/seeds/ingredients.seed';
 import { CreateAffiliateLinkDto } from './dto/create-affiliate-link.dto';
+import { FuzzyMatchIngredientDto, ManualMapIngredientDto, BatchFixIngredientsDto, CreateIngredientDto } from './dto/ingredient-fixing.dto';
 
 @Controller('admin')
 @UseGuards(AdminGuard)
@@ -104,4 +105,46 @@ export class AdminController {
   updateReview(@Param('id') id: string, @Body() dto: any) { return this.adminService.updateReview(id, dto); }
   @Delete('reviews/:id') @HttpCode(HttpStatus.NO_CONTENT)
   deleteReview(@Param('id') id: string) { return this.adminService.deleteReview(id); }
+
+  // Ingredient Fixing (Phase 1-3)
+  @Post('ingredients/fuzzy-match')
+  fuzzyMatchIngredient(@Body() dto: FuzzyMatchIngredientDto) {
+    return this.adminService.fuzzyMatchIngredient(dto.query, dto.threshold ?? 70);
+  }
+
+  @Get('products/:productId/unrecognized-ingredients')
+  getUnrecognizedIngredients(@Param('productId') productId: string) {
+    return this.adminService.getUnrecognizedIngredients(productId);
+  }
+
+  @Post('products/map-ingredient')
+  manualMapIngredient(@Body() dto: ManualMapIngredientDto) {
+    return this.adminService.manualMapIngredient(dto.productId, dto.unrecognizedToken, dto.mappedToCanonicalName);
+  }
+
+  @Post('products/batch-fix')
+  batchFixIngredients(@Body() dto: BatchFixIngredientsDto) {
+    return this.adminService.batchFixIngredients(dto.productIds, dto.fuzzyThreshold ?? 70, dto.autoFixOnly ?? false);
+  }
+
+  // Ingredient Management (Phase 3)
+  @Get('ingredients')
+  listIngredients(@Query('page') page = 1, @Query('limit') limit = 20, @Query('search') search = '', @Query('category') category = '') {
+    return this.adminService.listIngredients(+page, +limit, search, category);
+  }
+
+  @Post('ingredients')
+  createIngredient(@Body() dto: CreateIngredientDto) {
+    return this.adminService.createIngredient(dto);
+  }
+
+  @Patch('ingredients/:id')
+  updateIngredient(@Param('id') id: string, @Body() dto: Partial<CreateIngredientDto>) {
+    return this.adminService.updateIngredient(id, dto);
+  }
+
+  @Delete('ingredients/:id') @HttpCode(HttpStatus.NO_CONTENT)
+  deleteIngredient(@Param('id') id: string) {
+    return this.adminService.deleteIngredient(id);
+  }
 }
