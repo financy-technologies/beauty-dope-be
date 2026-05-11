@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, FindManyOptions } from 'typeorm';
+import { Repository, Like, FindManyOptions, IsNull, Brackets } from 'typeorm';
 import { User } from '../auth/entities/user.entity';
 import { Product } from '../products/entities/product.entity';
 import { Dupe } from '../dupes/entities/dupe.entity';
@@ -117,6 +117,58 @@ export class AdminService {
     await this.getProduct(id);
     await this.productsRepo.update(id, { flaggedReason: null, flagNote: null, flaggedAt: null } as any);
     return this.getProduct(id);
+  }
+
+  // ─── Unparsed Ingredients ──────────────────────────────────────
+  async listUnparsedIngredients(page = 1, limit = 20, filter: 'all' | 'empty' | 'no_tokens' | 'partial' = 'all') {
+    const qb = this.productsRepo.createQueryBuilder('p');
+
+    if (filter === 'empty') {
+      qb.where('(p.ingredients IS NULL OR p.ingredients = :empty)', { empty: '' });
+    } else if (filter === 'no_tokens') {
+      qb.where('p.ingredients IS NOT NULL')
+        .andWhere('p.ingredients != :empty', { empty: '' })
+        .andWhere('(p.ingredients_tokens IS NULL OR p.ingredient_breakdown IS NULL)');
+    } else if (filter === 'partial') {
+      qb.where('p.ingredient_breakdown IS NOT NULL')
+        .andWhere('JSON_EXTRACT(p.ingredient_breakdown, "$.recognizedCount") < JSON_EXTRACT(p.ingredient_breakdown, "$.tokenCount")');
+    } else {
+      qb.where(new Brackets(sub => {
+        sub.where('p.ingredients IS NULL')
+          .orWhere('p.ingredients = :empty', { empty: '' })
+          .orWhere('p.ingredients_tokens IS NULL')
+          .orWhere('p.ingredient_breakdown IS NULL')
+          .orWhere('JSON_EXTRACT(p.ingredient_breakdown, "$.recognizedCount") < JSON_EXTRACT(p.ingredient_breakdown, "$.tokenCount")');
+      }));
+    }
+
+    const total = await qb.getCount();
+    const data = await qb
+      .orderBy('p.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    const mapped = data.map(p => {
+      let issue = 'unknown';
+      if (!p.ingredients || p.ingredients.trim() === '') {
+        issue = 'empty';
+      } else if (!p.ingredientsTokens) {
+        issue = 'no_tokens';
+      } else if (!p.ingredientBreakdown) {
+        issue = 'no_breakdown';
+      } else if (p.ingredientBreakdown.recognizedCount < p.ingredientBreakdown.tokenCount) {
+        issue = 'partial';
+      }
+      return {
+        ...p,
+        ingredientIssue: issue,
+        tokenCount: p.ingredientBreakdown?.tokenCount ?? (p.ingredientsTokens?.length ?? 0),
+        recognizedCount: p.ingredientBreakdown?.recognizedCount ?? 0,
+      };
+    });
+
+    return { data: mapped, total, page, limit };
   }
 
   // ─── Dupes ────────────────────────────────────────────────────

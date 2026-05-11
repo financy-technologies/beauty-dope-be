@@ -27,6 +27,16 @@ export class AdminController {
     return this.adminService.clearFlag(id);
   }
 
+  // Unparsed ingredients
+  @Get('unparsed-ingredients')
+  listUnparsedIngredients(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('filter') filter: 'all' | 'empty' | 'no_tokens' | 'partial' = 'all',
+  ) {
+    return this.adminService.listUnparsedIngredients(+page, +limit, filter);
+  }
+
   // Stats
   @Get('stats')
   getStats() { return this.adminService.getStats(); }
