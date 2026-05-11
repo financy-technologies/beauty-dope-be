@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, HttpCode, HttpStatus, Req } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AdminGuard } from './admin.guard';
 import { IngredientsSeedService } from '../database/seeds/ingredients.seed';
+import { CreateAffiliateLinkDto } from './dto/create-affiliate-link.dto';
 
 @Controller('admin')
 @UseGuards(AdminGuard)
@@ -14,6 +15,17 @@ export class AdminController {
   @Post('seed-ingredients')
   seedIngredients() {
     return this.ingredientsSeedService.seed();
+  }
+
+  @Post('affiliate-link')
+  generateAffiliateLink(
+    @Body() dto: CreateAffiliateLinkDto,
+    @Req() req: { ip?: string; headers: Record<string, string | string[] | undefined> },
+  ) {
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const forwardedIp = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+    const clientIp = forwardedIp?.split(',')[0]?.trim() || req.ip;
+    return this.adminService.generateAffiliateLink(dto.url, clientIp);
   }
 
   // Flagged products

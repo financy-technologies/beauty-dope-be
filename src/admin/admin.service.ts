@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadGatewayException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, FindManyOptions, IsNull, Brackets } from 'typeorm';
 import { User } from '../auth/entities/user.entity';
@@ -6,6 +6,7 @@ import { Product } from '../products/entities/product.entity';
 import { Dupe } from '../dupes/entities/dupe.entity';
 import { Review } from '../reviews/entities/review.entity';
 import * as bcrypt from 'bcrypt';
+import axios from 'axios';
 
 @Injectable()
 export class AdminService {
@@ -25,6 +26,63 @@ export class AdminService {
       this.reviewsRepo.count(),
     ]);
     return { users, products, dupes, reviews };
+  }
+
+  async generateAffiliateLink(url: string, clientIp?: string) {
+    if (!url?.trim()) {
+      throw new BadRequestException('URL is required');
+    }
+
+    const apiKey = 'GVvoz2xAQJ5nJwY648KSd6RYpd19AUto87v7Q7Tm';
+    const userId = 5074225;
+    const ipAddress = clientIp || '10.0.0.41';
+
+    const payload = {
+      data: {
+        type: 'createexternalearnlink',
+        attributes: {
+          userid: userId,
+          links: [url.trim()],
+          ip_address: ipAddress,
+        },
+      },
+    };
+
+    try {
+      const response = await axios.post(
+        'https://middleware.ckaro.in/api/convert/ekaro',
+        payload,
+        {
+          headers: {
+            'x-api-key': apiKey,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          timeout: 15000,
+        },
+      );
+
+      const result = response.data?.data?.[0];
+      const affiliateUrl = result?.ekaro_url;
+
+      if (!affiliateUrl) {
+        throw new BadGatewayException('Affiliate link service returned an unexpected response');
+      }
+
+      return {
+        originalUrl: result.original_url ?? url.trim(),
+        affiliateUrl,
+      };
+    } catch (error) {
+      if (error instanceof BadGatewayException) {
+        throw error;
+      }
+
+      const message = axios.isAxiosError(error)
+        ? error.response?.data?.message || error.response?.data?.error || error.message
+        : 'Failed to generate affiliate link';
+      throw new BadGatewayException(message);
+    }
   }
 
   // ─── Users ────────────────────────────────────────────────────
