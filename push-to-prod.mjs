@@ -8,15 +8,21 @@
  *   node push-to-prod.mjs
  *
  * Env vars (or edit the constants below):
- *   PROD_URL   — production base URL  (default: https://beautydupe.servehttp.com)
- *   BATCH_SIZE — products per request (default: 50)
+ *   PROD_URL    — production base URL  (default: https://api.skinevora.com)
+ *   BATCH_SIZE  — products per request (default: 50)
+ *   START_BATCH — 1-indexed batch number to resume from (default: 1)
+ *   MAX_RETRIES — retries per batch on failure before giving up (default: 3)
  */
 
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
 
-const PROD_URL   = process.env.PROD_URL   ?? 'https://beautydupe.servehttp.com';
-const BATCH_SIZE = Number(process.env.BATCH_SIZE ?? 50);
+const PROD_URL    = process.env.PROD_URL    ?? 'https://api.skinevora.com';
+const BATCH_SIZE  = Number(process.env.BATCH_SIZE ?? 50);
+const START_BATCH = Number(process.env.START_BATCH ?? 1);
+const MAX_RETRIES = Number(process.env.MAX_RETRIES ?? 3);
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const ENDPOINT = `${PROD_URL}/api/scraping/preview/push-products`;
 
@@ -68,27 +74,42 @@ const products = rows.map(r => ({
 // ── push in batches ───────────────────────────────────────────────────────────
 let totalCreated = 0, totalUpdated = 0;
 
-for (let i = 0; i < products.length; i += BATCH_SIZE) {
+const totalBatches = Math.ceil(products.length / BATCH_SIZE);
+
+for (let i = (START_BATCH - 1) * BATCH_SIZE; i < products.length; i += BATCH_SIZE) {
   const batch = products.slice(i, i + BATCH_SIZE);
   const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-  const totalBatches = Math.ceil(products.length / BATCH_SIZE);
 
-  const res = await fetch(ENDPOINT, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ products: batch }),
-  });
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    try {
+      const res = await fetch(ENDPOINT, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ products: batch }),
+      });
 
-  if (!res.ok) {
-    console.error(`Batch ${batchNum}/${totalBatches} FAILED — HTTP ${res.status}`);
-    console.error(await res.text());
-    process.exit(1);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} — ${await res.text()}`);
+      }
+
+      const { created, updated } = await res.json();
+      totalCreated += created;
+      totalUpdated += updated;
+      console.log(`Batch ${batchNum}/${totalBatches} — created: ${created}, updated: ${updated}`);
+      break;
+    } catch (err) {
+      if (attempt > MAX_RETRIES) {
+        console.error(`Batch ${batchNum}/${totalBatches} FAILED after ${MAX_RETRIES} retries — ${err.message}`);
+        console.error(`Resume with: START_BATCH=${batchNum} node push-to-prod.mjs`);
+        process.exit(1);
+      }
+      const backoffMs = Math.min(1000 * 2 ** (attempt - 1), 30000);
+      console.warn(`Batch ${batchNum}/${totalBatches} attempt ${attempt} failed — ${err.message}. Retrying in ${backoffMs}ms...`);
+      await sleep(backoffMs);
+    }
   }
-
-  const { created, updated } = await res.json();
-  totalCreated += created;
-  totalUpdated += updated;
-  console.log(`Batch ${batchNum}/${totalBatches} — created: ${created}, updated: ${updated}`);
 }
 
 console.log(`\nDone — total created: ${totalCreated}, total updated: ${totalUpdated}`);
